@@ -38,3 +38,34 @@ Si git te dice que hay conflicto, no entres en pánico:
 1. Git marcará en los archivos dónde está el problema (busca `<<<<<<<`).
 2. Decide qué código se queda y borra las marcas de git.
 3. Guarda, haz commit y vuelve a subir.
+
+## Tips para trabajar al mismo tiempo ⚡
+Si ambos están programando en este momento:
+*   **Divídanse los archivos:** "Yo hago el `Header.jsx` y tú el `Footer.jsx`". Eviten tocar el mismo archivo a la vez.
+*   **Avisen:** Si vas a cambiar algo global (como `App.css` o `package.json`), avisa a tu compañero.
+*   **Pull seguido:** Ejecuta `git pull origin main` en tu rama cada 30 minutos para traer lo que tu amigo ya terminó.
+
+## Proyecto Android (Expansión) 📱
+Si tu compañero va a crear la app móvil:
+1.  **NO mezclen archivos:** Creen una carpeta nueva en la raíz llamada `/android` o `/mobile`.
+2.  **Libertad total:** Mientras él trabaje DENTRO de esa carpeta, puede hacer lo que quiera sin romper tu página web.
+3.  **Ramas:** Puede usar una rama llamada `android-dev` para mantener todo separado hasta que esté lista.
+
+## Configuración Inicial para Nuevos Colaboradores 🛠️
+Si eres nuevo en el proyecto, sigue estos pasos para configurar tu entorno:
+
+1.  **Clonar el repositorio:** `git clone <url-del-repo>`
+2.  **Configurar Variables de Entorno:**
+    *   Ve a la carpeta `/server`.
+    *   Copia el archivo de ejemplo: `cp .env.example .env` (o hazlo manual).
+    *   Edita `.env` con tus credenciales de PostgreSQL.
+3.  **Instalar y Configurar Base de Datos:**
+    ```bash
+    cd server
+    npm install
+    npm run db:setup  # <--- ¡Esto crea la BD y tablas automágicamente!
+    ```
+4.  **Iniciar Servidor:** `npm run dev`
+
+
+

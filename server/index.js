@@ -5,6 +5,10 @@ const { Server } = require("socket.io");
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const pool = require('./db');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
 require('dotenv').config(); // Ensure dotenv is used for secret
 
 const app = express();
@@ -12,6 +16,26 @@ const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_key_123'; // Logic fo
 
 app.use(cors());
 app.use(express.json());
+
+// file upload setup
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir);
+}
+
+app.use('/uploads', express.static(uploadsDir));
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, uploadsDir)
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+        cb(null, uniqueSuffix + path.extname(file.originalname))
+    }
+})
+
+const upload = multer({ storage: storage });
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -115,16 +139,23 @@ app.get('/api/users/profile', authenticateToken, async (req, res) => {
 });
 
 // Update Profile
-app.put('/api/users/profile', authenticateToken, async (req, res) => {
+app.put('/api/users/profile', authenticateToken, upload.single('photo'), async (req, res) => {
     try {
-        const { name, phone, bio, photo_url } = req.body;
+        const { name, phone, bio } = req.body;
+        let photo_url = req.body.photo_url || null; // Fix undefined
+
+        if (req.file) {
+            // If new file uploaded, construct URL (assuming server runs on localhost:5000)
+            photo_url = `http://localhost:5000/uploads/${req.file.filename}`;
+        }
+
         const result = await pool.query(
             "UPDATE users SET name = $1, phone = $2, bio = $3, photo_url = $4 WHERE id = $5 RETURNING id, name, email, role, phone, bio, photo_url",
-            [name, phone, bio, photo_url, req.user.id]
+            [name || '', phone || null, bio || '', photo_url, req.user.id]
         );
         res.json(result.rows[0]);
     } catch (err) {
-        console.error(err.message);
+        console.error("Profile Update Error:", err.message);
         res.status(500).send("Server Error");
     }
 });

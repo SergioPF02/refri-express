@@ -13,8 +13,10 @@ const Profile = () => {
         name: '',
         phone: '',
         bio: '',
-        photo_url: ''
+        photo_url: '' // Holds string URL from DB
     });
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [previewUrl, setPreviewUrl] = useState(null);
 
     useEffect(() => {
         if (!user) return;
@@ -31,6 +33,8 @@ const Profile = () => {
                         bio: data.bio || '',
                         photo_url: data.photo_url || ''
                     });
+                    setPreviewUrl(null); // Clear preview when new data is fetched
+                    setSelectedFile(null); // Clear selected file when new data is fetched
                 }
             } catch (err) {
                 console.error(err);
@@ -45,29 +49,63 @@ const Profile = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setSelectedFile(file);
+            setPreviewUrl(URL.createObjectURL(file));
+        } else {
+            setSelectedFile(null);
+            setPreviewUrl(null);
+        }
+    };
+
     const handleSave = async () => {
         try {
+            const data = new FormData();
+            data.append('name', formData.name);
+            data.append('phone', formData.phone);
+            data.append('bio', formData.bio);
+            if (formData.photo_url && !selectedFile) data.append('photo_url', formData.photo_url);
+            if (selectedFile) {
+                data.append('photo', selectedFile);
+                // We don't send photo_url if we are sending a new photo, backend will generate new one
+            }
+
             const response = await fetch('http://localhost:5000/api/users/profile', {
                 method: 'PUT',
                 headers: {
-                    'Content-Type': 'application/json',
+                    // 'Content-Type': 'multipart/form-data', // DO NOT set content-type manually with FormData, browser does it with boundary
                     'Authorization': `Bearer ${user.token}`
                 },
-                body: JSON.stringify(formData)
+                body: data
             });
 
             if (response.ok) {
+                const updatedUser = await response.json();
+                setFormData(prev => ({ ...prev, photo_url: updatedUser.photo_url }));
+                setPreviewUrl(null);
+                setSelectedFile(null);
+                // Update local storage too to keep session sync
+                const newSession = { ...user, ...updatedUser };
+                localStorage.setItem('refri_user', JSON.stringify(newSession));
+
                 alert('Perfil actualizado correctamente');
+                // Force reload or re-fetch (optional)
             } else {
-                alert('Error al guardar');
+                const err = await response.text();
+                console.error("Save Error:", err);
+                alert('Error al guardar: ' + err);
             }
         } catch (err) {
             console.error(err);
-            alert('Error de conexión');
+            alert('Error de conexión: ' + err.message);
         }
     };
 
     if (loading) return <div style={{ padding: '24px', textAlign: 'center' }}>Cargando perfil...</div>;
+
+    const displayImage = previewUrl || formData.photo_url;
 
     return (
         <div style={{ padding: '24px', minHeight: '100vh', backgroundColor: 'var(--color-bg-light)' }}>
@@ -81,20 +119,47 @@ const Profile = () => {
 
                 <div className="glass-card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
-                    {/* Photo Preview */}
+                    {/* Photo Upload */}
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '16px' }}>
                         <div style={{
-                            width: '100px', height: '100px', borderRadius: '50%',
-                            backgroundColor: '#e0e0e0', overflow: 'hidden', marginBottom: '8px',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', border: '3px solid white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                            width: '120px', height: '120px', borderRadius: '50%',
+                            backgroundColor: '#e0e0e0', overflow: 'hidden', marginBottom: '16px',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', border: '3px solid white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                            position: 'relative'
                         }}>
-                            {formData.photo_url ? (
-                                <img src={formData.photo_url} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            {displayImage ? (
+                                <img src={displayImage} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             ) : (
                                 <User size={48} color="#999" />
                             )}
                         </div>
-                        <span style={{ fontSize: '0.9rem', color: '#666' }}>{user.role === 'worker' ? 'Técnico' : 'Cliente'}</span>
+
+                        <label
+                            htmlFor="photo-upload"
+                            style={{
+                                padding: '8px 16px',
+                                backgroundColor: '#E3F2FD',
+                                color: 'var(--color-action-blue)',
+                                borderRadius: '20px',
+                                cursor: 'pointer',
+                                fontSize: '0.9rem',
+                                fontWeight: '600',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                            }}
+                        >
+                            <Image size={20} />
+                            Cambiar Foto
+                        </label>
+                        <input
+                            id="photo-upload"
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFileChange}
+                            style={{ display: 'none' }}
+                        />
+                        <span style={{ fontSize: '0.9rem', color: '#666', marginTop: '8px' }}>{user.role === 'worker' ? 'Técnico' : 'Cliente'}</span>
                     </div>
 
                     <div>
@@ -110,14 +175,6 @@ const Profile = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Phone size={24} color="var(--color-primary)" />
                             <Input name="phone" value={formData.phone} onChange={handleChange} placeholder="667 123 4567" type="tel" />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>URL Foto de Perfil</label>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <Image size={24} color="var(--color-primary)" />
-                            <Input name="photo_url" value={formData.photo_url} onChange={handleChange} placeholder="https://..." />
                         </div>
                     </div>
 
@@ -144,7 +201,10 @@ const Profile = () => {
                     </div>
 
                     <div style={{ marginTop: '16px' }}>
-                        <Button onClick={handleSave}>
+                        <Button onClick={async () => {
+                            console.log("Button Clicked"); // Debug
+                            await handleSave();
+                        }}>
                             <FloppyDisk size={24} style={{ marginRight: '8px' }} />
                             Guardar Cambios
                         </Button>
