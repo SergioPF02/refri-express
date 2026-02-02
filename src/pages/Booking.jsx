@@ -8,6 +8,8 @@ import ServiceCard from '../components/ServiceCard';
 import Input from '../components/Input';
 import TonnageSelector from '../components/TonnageSelector';
 import MapSelector from '../components/MapSelector';
+import serviceCleaning from '../assets/service-cleaning.png';
+import serviceGas from '../assets/service-gas.png';
 
 const Booking = () => {
     const navigate = useNavigate();
@@ -168,7 +170,7 @@ const Booking = () => {
                     >
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                             <ServiceCard
-                                image="https://images.unsplash.com/photo-1610444640103-68d067252037?q=80&w=400&auto=format&fit=crop"
+                                image={serviceCleaning}
                                 icon={<Drop size={32} weight="duotone" />}
                                 title="Lavado"
                                 price={formData.service === 'Lavado' ? `$${formData.price} ` : '$450+'}
@@ -176,7 +178,7 @@ const Booking = () => {
                                 onClick={() => handleSelectService('Lavado')}
                             />
                             <ServiceCard
-                                image="https://images.unsplash.com/photo-1545259741-2ea3ebf61fa3?q=80&w=400&auto=format&fit=crop"
+                                image={serviceGas}
                                 icon={<Fire size={32} weight="duotone" />}
                                 title="Gas"
                                 price={formData.service === 'Gas' ? `$${formData.price} ` : '$800+'}
