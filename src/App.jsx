@@ -2,6 +2,8 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
 import Booking from './pages/Booking';
+
+import Quotation from './pages/Quotation';
 import Success from './pages/Success';
 
 import Dashboard from './pages/Dashboard';
@@ -23,6 +25,7 @@ function App() {
 
           <Route path="/home" element={<ProtectedRoute requiredRole="client"><Home /></ProtectedRoute>} />
           <Route path="/booking" element={<ProtectedRoute requiredRole="client"><Booking /></ProtectedRoute>} />
+          <Route path="/quotation" element={<ProtectedRoute requiredRole="client"><Quotation /></ProtectedRoute>} />
           <Route path="/success" element={<ProtectedRoute requiredRole="client"><Success /></ProtectedRoute>} />
           <Route path="/orders" element={<ProtectedRoute requiredRole="client"><ClientOrders /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />

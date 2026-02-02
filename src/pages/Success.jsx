@@ -17,7 +17,7 @@ const Success = () => {
 
             <h1 style={{ marginBottom: '16px' }}>¡Pedido Confirmado!</h1>
             <p style={{ color: 'var(--color-text-secondary)', marginBottom: '32px' }}>
-                Un técnico va en camino (metafóricamente).
+                Su solicitud ha sido recibida exitosamente. Le notificaremos en cuanto un técnico asignado acepte su servicio.
             </p>
 
             <div className="glass-card" style={{ padding: '24px', textAlign: 'left', marginBottom: '32px' }}>

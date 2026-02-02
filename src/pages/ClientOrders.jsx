@@ -7,12 +7,78 @@ import StarRating from '../components/StarRating';
 import Button from '../components/Button';
 import Input from '../components/Input';
 
+import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+// Custom Technician Icon (Truck Emoji as SVG)
+const truckIconUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#2196F3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <rect x="1" y="3" width="15" height="13"></rect>
+  <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+  <circle cx="5.5" cy="18.5" r="2.5"></circle>
+  <circle cx="18.5" cy="18.5" r="2.5"></circle>
+</svg>
+`);
+
+const technicianIcon = new L.Icon({
+    iconUrl: truckIconUrl,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+    popupAnchor: [0, -20]
+});
+
+// Destination Icon
+const destIconUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="#F44336" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+  <circle cx="12" cy="10" r="3"></circle>
+</svg>
+`);
+
+const destinationIcon = new L.Icon({
+    iconUrl: destIconUrl,
+    iconSize: [30, 30],
+    iconAnchor: [15, 30]
+});
+
+// Component to fit map bounds to show both points
+const FitBounds = ({ markers }) => {
+    const map = useMap();
+    useEffect(() => {
+        if (!map || markers.length === 0) return;
+        const group = L.featureGroup(markers.map(m => L.marker(m)));
+        map.fitBounds(group.getBounds(), { padding: [50, 50] });
+    }, [map, markers]);
+    return null;
+};
+
+
+
 const socket = io('http://localhost:5000'); // Connect to backend
 
 const ClientOrders = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
     const [orders, setOrders] = useState([]);
+    const [technicianLocations, setTechnicianLocations] = useState({}); // { jobId: { lat, lng } }
+
+    // ... (fetchOrders effect)
+
+    useEffect(() => {
+        // ... (existing listeners)
+        socket.on('technician_location_update', (data) => {
+            setTechnicianLocations(prev => ({
+                ...prev,
+                [data.jobId]: { lat: data.lat, lng: data.lng }
+            }));
+        });
+
+        return () => {
+            socket.off('technician_location_update');
+            // ... (existing off)
+        };
+    }, []);
 
     // Review Modal State
     const [showReviewModal, setShowReviewModal] = useState(false);
@@ -178,6 +244,60 @@ const ClientOrders = () => {
                                 {order.technician_name && (
                                     <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #eee', fontSize: '0.9rem' }}>
                                         <strong>Técnico:</strong> {order.technician_name}
+                                    </div>
+                                )}
+
+                                {/* Real-time Tracking Map */}
+                                {order.status === 'In Progress' && (
+                                    <div style={{ marginTop: '16px', borderRadius: '12px', overflow: 'hidden', height: '250px', border: '2px solid #2196F3', position: 'relative', zIndex: 0 }}>
+                                        {technicianLocations[order.id] && order.lat && order.lng ? (
+                                            <MapContainer
+                                                center={[technicianLocations[order.id].lat, technicianLocations[order.id].lng]}
+                                                zoom={13}
+                                                style={{ height: '100%', width: '100%' }}
+                                                key={`${technicianLocations[order.id].lat}-${technicianLocations[order.id].lng}`}
+                                            >
+                                                <TileLayer
+                                                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                                                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                                />
+
+                                                {/* Technician Marker */}
+                                                <Marker
+                                                    position={[technicianLocations[order.id].lat, technicianLocations[order.id].lng]}
+                                                    icon={technicianIcon}
+                                                />
+
+                                                {/* Destination Marker */}
+                                                <Marker
+                                                    position={[order.lat, order.lng]}
+                                                    icon={destinationIcon}
+                                                />
+
+                                                {/* Trajectory Polyline */}
+                                                <Polyline
+                                                    positions={[
+                                                        [technicianLocations[order.id].lat, technicianLocations[order.id].lng],
+                                                        [order.lat, order.lng]
+                                                    ]}
+                                                    pathOptions={{ color: '#2196F3', dashArray: '10, 10', weight: 4, opacity: 0.7 }}
+                                                />
+
+                                                {/* Auto-fit bounds */}
+                                                <FitBounds markers={[
+                                                    [technicianLocations[order.id].lat, technicianLocations[order.id].lng],
+                                                    [order.lat, order.lng]
+                                                ]} />
+                                            </MapContainer>
+                                        ) : (
+                                            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#E3F2FD', color: '#1565C0', gap: '8px' }}>
+                                                <div style={{ width: '10px', height: '10px', backgroundColor: '#2196F3', borderRadius: '50%', animation: 'pulse 1.5s infinite' }}></div>
+                                                Esperando ubicación del técnico...
+                                            </div>
+                                        )}
+                                        <div style={{ position: 'absolute', bottom: 5, left: 5, backgroundColor: 'rgba(255,255,255,0.8)', padding: '2px 5px', borderRadius: '4px', fontSize: '0.7rem', zIndex: 1000 }}>
+                                            Actualización en tiempo real
+                                        </div>
                                     </div>
                                 )}
 

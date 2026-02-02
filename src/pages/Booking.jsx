@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Drop, Fire, Wrench, Calendar, MapPin, User } from 'phosphor-react';
+import { ArrowLeft, Drop, Fire, Wrench, Calendar, MapPin, User, Trash, X, Plus, Minus } from 'phosphor-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/Button';
@@ -20,77 +20,105 @@ const Booking = () => {
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [takenSlots, setTakenSlots] = useState([]);
 
+    const variants = {
+        enter: (direction) => ({
+            x: direction > 0 ? 1000 : -1000,
+            opacity: 0
+        }),
+        center: {
+            zIndex: 1,
+            x: 0,
+            opacity: 1
+        },
+        exit: (direction) => ({
+            zIndex: 0,
+            x: direction < 0 ? 1000 : -1000,
+            opacity: 0
+        })
+    };
+
+    // Cart State
+    const [cart, setCart] = useState([]);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [tempItem, setTempItem] = useState({ service: '', tonnage: 1, quantity: 1 });
+
     const [formData, setFormData] = useState({
-        service: '',
-        tonnage: 1,
-        price: 0,
         date: '',
         time: '',
         address: '',
-        lat: 24.809065, // Culiacan Center
+        addressDetails: '',
+        lat: 24.809065,
         lng: -107.394017,
         name: '',
-        phone: '',
-        quantity: 1
+        phone: ''
     });
 
-    // ... (Debounce Effect) ...
+    useEffect(() => {
+        if (user) {
+            setFormData(prev => ({ ...prev, name: user.name || '' }));
+        }
+    }, [user]);
 
-    // Fetch Availability
+    // Fetch taken slots when date changes
     useEffect(() => {
         if (formData.date) {
             fetch(`http://localhost:5000/api/bookings/availability?date=${formData.date}`)
                 .then(res => res.json())
-                .then(data => setTakenSlots(data))
-                .catch(err => console.error(err));
-        } else {
-            setTakenSlots([]);
+                .then(setTakenSlots)
+                .catch(console.error);
         }
     }, [formData.date]);
 
+    // Address Autocomplete Logic
     useEffect(() => {
-        if (user) {
-            setFormData(prev => ({
-                ...prev,
-                name: user.name || '',
-                // phone is not in our simple user object yet, but if it were we'd add it
-            }));
+        if (formData.address.length > 3) {
+            const timeoutId = setTimeout(() => {
+                fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${formData.address}&countrycodes=mx`)
+                    .then(res => res.json())
+                    .then(data => {
+                        setSuggestions(data);
+                        setShowSuggestions(true);
+                    })
+                    .catch(console.error);
+            }, 500); // 500ms debounce
+            return () => clearTimeout(timeoutId);
+        } else {
+            setSuggestions([]);
+            setShowSuggestions(false);
         }
-    }, [user]);
+    }, [formData.address]);
 
-    const variants = { /* ... */ }; // Need to keep variants if replacing block includes them, checking context
-
-    // RE-INJECT VARIANTS IF NOT INCLUDED IN BLOCK - Wait, I'll restrict edits to logic functions
-
-    const calculatePrice = (service, tons, qty) => {
+    const calculateItemPrice = (service, tons, qty) => {
         let base = 0;
         if (service === 'Lavado') base = 450;
         if (service === 'Gas') base = 800;
         if (service === 'Reparación') return 0; // Cotizar
 
-        // Pricing Logic
-        if (tons === 1.5) base += 100;
-        if (tons === 2) base += 200;
-        if (tons === 3) base += 400;
-
+        if (service !== 'Reparación') {
+            if (tons === 1.5) base += 100;
+            if (tons === 2) base += 200;
+            if (tons === 3) base += 400;
+        }
         return base * qty;
     };
 
-    const handleSelectService = (service) => {
-        const price = calculatePrice(service, formData.tonnage, formData.quantity);
-        setFormData({ ...formData, service, price });
+    const openServiceModal = (service) => {
+        setTempItem({ service, tonnage: 1, quantity: 1 });
+        setIsModalOpen(true);
     };
 
-    const handleTonnageChange = (tons) => {
-        const price = calculatePrice(formData.service, tons, formData.quantity);
-        setFormData({ ...formData, tonnage: tons, price });
+    const addToCart = () => {
+        const price = calculateItemPrice(tempItem.service, tempItem.tonnage, tempItem.quantity);
+        const newItem = { ...tempItem, price, id: Date.now() };
+        setCart([...cart, newItem]);
+        setIsModalOpen(false);
     };
 
-    const handleQuantityChange = (qty) => {
-        if (qty < 1) return;
-        const price = calculatePrice(formData.service, formData.tonnage, qty);
-        setFormData({ ...formData, quantity: qty, price });
+    const removeFromCart = (id) => {
+        setCart(cart.filter(item => item.id !== id));
     };
+
+    const getTotalPrice = () => cart.reduce((acc, item) => acc + item.price, 0);
 
     const nextStep = () => {
         setDirection(1);
@@ -107,9 +135,34 @@ const Booking = () => {
             nextStep();
         } else {
             try {
+                // Build Description from Cart
+                const descriptionItems = cart.map(item => {
+                    const tons = item.service !== 'Reparación' ? `(${item.tonnage} Ton)` : '';
+                    return `${item.quantity}x ${item.service} ${tons}`;
+                });
+                const fullDescription = descriptionItems.join(', ');
+                const totalPrice = getTotalPrice();
+                const primaryService = cart.length === 1 ? cart[0].service : 'Múltiple';
+
+                // Determine max tonnage for blocking rules (simulated)
+                // We'll take the max tonnage from the cart to be safe for blocking
+                const maxTonnage = Math.max(...cart.map(i => i.tonnage || 0));
+
+                // Format address
+                const parts = formData.address.split(',');
+                const street = parts[0];
+                const rest = parts.slice(1).join(',');
+                const formattedAddress = `${street} ${formData.addressDetails || ''},${rest}`;
+
                 const bookingData = {
                     ...formData,
-                    user_email: user?.email || 'guest' // Fallback for guest
+                    formattedAddress, // Note: backend expects 'address', fixed below
+                    address: formattedAddress,
+                    service: primaryService,
+                    description: fullDescription,
+                    price: totalPrice,
+                    tonnage: maxTonnage, // For blocking logic
+                    user_email: user?.email || 'guest'
                 };
 
                 const response = await fetch('http://localhost:5000/api/bookings', {
@@ -119,9 +172,9 @@ const Booking = () => {
                 });
 
                 if (response.ok) {
-                    navigate('/success', { state: formData });
+                    navigate('/success', { state: bookingData });
                 } else {
-                    alert('Error al agendar.')
+                    alert('Error al agendar.');
                 }
             } catch (err) {
                 console.error(err);
@@ -137,7 +190,7 @@ const Booking = () => {
                     <ArrowLeft size={24} color="var(--color-deep-navy)" />
                 </button>
                 <h2 style={{ marginLeft: '16px' }}>
-                    {step === 1 ? 'Elige tu servicio' : step === 2 ? '¿Cuándo vamos?' : 'Tus datos'}
+                    {step === 1 ? 'Arma tu Pedido' : step === 2 ? '¿Cuándo vamos?' : 'Tus datos'}
                 </h2>
             </div>
 
@@ -168,57 +221,108 @@ const Booking = () => {
                         exit="exit"
                         transition={{ x: { type: "spring", stiffness: 300, damping: 30 }, opacity: { duration: 0.2 } }}
                     >
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        {/* Service Selection Grid */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
                             <ServiceCard
                                 image={serviceCleaning}
                                 icon={<Drop size={32} weight="duotone" />}
                                 title="Lavado"
-                                price={formData.service === 'Lavado' ? `$${formData.price} ` : '$450+'}
-                                isSelected={formData.service === 'Lavado'}
-                                onClick={() => handleSelectService('Lavado')}
+                                price="$450+"
+                                onClick={() => openServiceModal('Lavado')}
                             />
                             <ServiceCard
                                 image={serviceGas}
                                 icon={<Fire size={32} weight="duotone" />}
                                 title="Gas"
-                                price={formData.service === 'Gas' ? `$${formData.price} ` : '$800+'}
-                                isSelected={formData.service === 'Gas'}
-                                onClick={() => handleSelectService('Gas')}
+                                price="$800+"
+                                onClick={() => openServiceModal('Gas')}
                             />
                             <ServiceCard
                                 icon={<Wrench size={32} weight="duotone" />}
                                 title="Reparación"
                                 price="Cotizar"
-                                isSelected={formData.service === 'Reparación'}
-                                onClick={() => handleSelectService('Reparación')}
+                                onClick={() => openServiceModal('Reparación')}
                             />
                         </div>
 
-                        {(formData.service === 'Lavado' || formData.service === 'Gas') && (
-                            <div style={{ marginTop: '20px' }}>
-                                <TonnageSelector value={formData.tonnage} onChange={handleTonnageChange} />
+                        {/* Cart Summary */}
+                        {cart.length > 0 && (
+                            <div className="glass-card" style={{ padding: '20px' }}>
+                                <h3 style={{ marginBottom: '16px', fontSize: '1.1rem' }}>Tu Pedido</h3>
+                                {cart.map(item => (
+                                    <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #eee' }}>
+                                        <div>
+                                            <div style={{ fontWeight: 'bold' }}>{item.service} {item.service !== 'Reparación' && `(${item.tonnage} Ton)`}</div>
+                                            <div style={{ fontSize: '0.9rem', color: '#666' }}>Cantidad: {item.quantity}</div>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                            <span style={{ fontWeight: 'bold', color: 'var(--color-action-blue)' }}>
+                                                {item.price > 0 ? `$${item.price}` : 'Por Cotizar'}
+                                            </span>
+                                            <button onClick={() => removeFromCart(item.id)} style={{ color: '#ff5252', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                                <Trash size={20} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px', paddingTop: '16px', borderTop: '2px solid #f0f0f0' }}>
+                                    <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Total Estimado:</span>
+                                    <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--color-text-main)' }}>${getTotalPrice()}</span>
+                                </div>
                             </div>
                         )}
 
-                        <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
-                            <span style={{ fontSize: '1rem', fontWeight: '600', color: 'var(--color-text-main)' }}>Cantidad de equipos:</span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                                <button
-                                    onClick={() => handleQuantityChange((formData.quantity || 1) - 1)}
-                                    disabled={(formData.quantity || 1) <= 1}
-                                    style={{ width: '32px', height: '32px', borderRadius: '50%', border: '1px solid #ddd', backgroundColor: 'white', fontWeight: 'bold', fontSize: '1.2rem', color: 'var(--color-action-blue)', cursor: 'pointer' }}
-                                >
-                                    -
-                                </button>
-                                <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{formData.quantity || 1}</span>
-                                <button
-                                    onClick={() => handleQuantityChange((formData.quantity || 1) + 1)}
-                                    style={{ width: '32px', height: '32px', borderRadius: '50%', border: 'none', backgroundColor: 'var(--color-action-blue)', color: 'white', fontWeight: 'bold', fontSize: '1.2rem', cursor: 'pointer' }}
-                                >
-                                    +
-                                </button>
+                        {/* Service Config Modal */}
+                        {isModalOpen && (
+                            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                                <div className="glass-card" style={{ width: '90%', maxWidth: '350px', padding: '24px', position: 'relative', backgroundColor: 'white' }}>
+                                    <button onClick={() => setIsModalOpen(false)} style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                        <X size={24} />
+                                    </button>
+
+                                    <h3 style={{ marginBottom: '20px' }}>Configurar {tempItem.service}</h3>
+
+                                    {tempItem.service !== 'Reparación' && (
+                                        <div style={{ marginBottom: '24px' }}>
+                                            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Tamaño (Toneladas)</label>
+                                            <TonnageSelector
+                                                value={tempItem.tonnage}
+                                                onChange={(t) => setTempItem({ ...tempItem, tonnage: t })}
+                                            />
+                                        </div>
+                                    )}
+
+                                    <div style={{ marginBottom: '24px' }}>
+                                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Cantidad</label>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                            <button
+                                                onClick={() => setTempItem(p => ({ ...p, quantity: Math.max(1, p.quantity - 1) }))}
+                                                style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #ddd', background: 'white' }}
+                                            >
+                                                <Minus size={16} />
+                                            </button>
+                                            <span style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{tempItem.quantity}</span>
+                                            <button
+                                                onClick={() => setTempItem(p => ({ ...p, quantity: p.quantity + 1 }))}
+                                                style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--color-action-blue)', color: 'white', border: 'none' }}
+                                            >
+                                                <Plus size={16} />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ marginTop: '24px' }}>
+                                        <div style={{ textAlign: 'center', marginBottom: '16px', fontSize: '1.2rem', fontWeight: 'bold' }}>
+                                            {tempItem.service === 'Reparación' ? 'Precio Base: $0' :
+                                                `$${calculateItemPrice(tempItem.service, tempItem.tonnage, tempItem.quantity)}`
+                                            }
+                                        </div>
+                                        <Button onClick={addToCart}>Agregar a la Orden</Button>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
+                        )}
+
                     </motion.div>
                 )}
 
@@ -243,32 +347,44 @@ const Booking = () => {
                                 min={new Date().toISOString().split('T')[0]}
                             />
 
-                            <h4 style={{ marginTop: '16px', marginBottom: '8px', fontSize: '0.9rem', color: '#666' }}>Horarios Disponibles:</h4>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-                                {["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"].map(time => {
-                                    const isTaken = takenSlots.includes(time);
-                                    const isSelected = formData.time === time;
-                                    return (
-                                        <button
-                                            key={time}
-                                            disabled={isTaken}
-                                            onClick={() => setFormData({ ...formData, time })}
-                                            style={{
-                                                padding: '8px',
-                                                borderRadius: '8px',
-                                                border: isSelected ? '2px solid var(--color-action-blue)' : '1px solid #ddd',
-                                                backgroundColor: isSelected ? '#E3F2FD' : (isTaken ? '#f5f5f5' : 'white'),
-                                                color: isTaken ? '#ccc' : (isSelected ? 'var(--color-action-blue)' : '#333'),
-                                                cursor: isTaken ? 'not-allowed' : 'pointer',
-                                                fontWeight: isSelected ? 'bold' : 'normal',
-                                                textDecoration: isTaken ? 'line-through' : 'none'
-                                            }}
-                                        >
-                                            {time}
-                                        </button>
-                                    );
-                                })}
-                            </div>
+                            {formData.date && (
+                                <>
+                                    <h4 style={{ marginTop: '16px', marginBottom: '8px', fontSize: '0.9rem', color: '#666' }}>Horarios Disponibles (10:00 - 16:00):</h4>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
+                                        {(() => {
+                                            const slots = [];
+                                            for (let hour = 10; hour <= 16; hour++) {
+                                                slots.push(`${hour}:00`);
+                                                if (hour < 16) slots.push(`${hour}:30`);
+                                            }
+                                            return slots.map(time => {
+                                                const isTaken = takenSlots.includes(time);
+                                                const isSelected = formData.time === time;
+                                                return (
+                                                    <button
+                                                        key={time}
+                                                        disabled={isTaken}
+                                                        onClick={() => setFormData({ ...formData, time })}
+                                                        style={{
+                                                            padding: '8px',
+                                                            borderRadius: '8px',
+                                                            border: isSelected ? '2px solid var(--color-action-blue)' : '1px solid #ddd',
+                                                            backgroundColor: isSelected ? '#E3F2FD' : (isTaken ? '#f5f5f5' : 'white'),
+                                                            color: isTaken ? '#ccc' : (isSelected ? 'var(--color-action-blue)' : '#333'),
+                                                            cursor: isTaken ? 'not-allowed' : 'pointer',
+                                                            fontWeight: isSelected ? 'bold' : 'normal',
+                                                            textDecoration: isTaken ? 'line-through' : 'none',
+                                                            fontSize: '0.85rem'
+                                                        }}
+                                                    >
+                                                        {time}
+                                                    </button>
+                                                );
+                                            });
+                                        })()}
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </motion.div>
                 )}
@@ -342,6 +458,14 @@ const Booking = () => {
                                 )}
                             </div>
 
+                            <div style={{ marginTop: '12px', marginBottom: '12px' }}>
+                                <Input
+                                    placeholder="Número Exterior / Interior y Referencias"
+                                    value={formData.addressDetails || ''}
+                                    onChange={(e) => setFormData({ ...formData, addressDetails: e.target.value })}
+                                />
+                            </div>
+
                             <MapSelector
                                 lat={formData.lat}
                                 lng={formData.lng}
@@ -368,11 +492,18 @@ const Booking = () => {
             </AnimatePresence>
 
             <div style={{ marginTop: 'auto', paddingTop: '40px', zIndex: 10, position: 'relative' }}>
-                <Button onClick={handleNext} disabled={step === 1 && !formData.service}>
+                <Button
+                    onClick={handleNext}
+                    disabled={
+                        (step === 1 && cart.length === 0) ||
+                        (step === 2 && (!formData.date || !formData.time)) ||
+                        (step === 3 && (!formData.address || !formData.addressDetails || !formData.name || !formData.phone))
+                    }
+                >
                     {step === 3 ? 'Confirmar Pedido' : 'Continuar'}
                 </Button>
             </div>
-        </div>
+        </div >
     );
 };
 

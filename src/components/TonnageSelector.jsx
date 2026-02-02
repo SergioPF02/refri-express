@@ -17,6 +17,7 @@ const TonnageSelector = ({ value, onChange }) => {
                 {options.map((opt) => (
                     <button
                         key={opt.value}
+                        type="button"
                         onClick={() => onChange(opt.value)}
                         style={{
                             flex: 1,

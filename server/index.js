@@ -62,6 +62,14 @@ const authenticateToken = (req, res, next) => {
 // Socket.io Connection
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
+
+    // Relay technician location
+    socket.on('technician_location_update', (data) => {
+        // data: { jobId, lat, lng }
+        // Broadcast to all (for now) or room
+        io.emit('technician_location_update', data);
+    });
+
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
     });
@@ -160,17 +168,52 @@ app.put('/api/users/profile', authenticateToken, upload.single('photo'), async (
     }
 });
 
+// Update Booking Details (Technician)
+app.put('/api/bookings/:id/details', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { date, time, price, description, status } = req.body;
+
+        // Build query dynamically
+        const fields = [];
+        const values = [];
+        let idx = 1;
+
+        if (date !== undefined) { fields.push(`date = $${idx++}`); values.push(date); }
+        if (time !== undefined) { fields.push(`time = $${idx++}`); values.push(time); }
+        if (price !== undefined) { fields.push(`price = $${idx++}`); values.push(price); }
+        if (description !== undefined) { fields.push(`description = $${idx++}`); values.push(description); }
+        if (status !== undefined) { fields.push(`status = $${idx++}`); values.push(status); }
+
+        if (fields.length === 0) return res.json({ message: "No changes" });
+
+        values.push(id);
+        const query = `UPDATE bookings SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`;
+
+        const result = await pool.query(query, values);
+
+        if (result.rows.length === 0) return res.status(404).json({ error: "Booking not found" });
+
+        const updatedJob = result.rows[0];
+        io.emit('job_update', updatedJob); // Notify clients
+        res.json(updatedJob);
+
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send("Server Error");
+    }
+});
 // --- BOOKING ROUTES ---
 
 // Create Booking
 app.post('/api/bookings', async (req, res) => {
     try {
-        const { user_email, service, tonnage, price, date, time, address, lat, lng, name, phone } = req.body;
+        const { user_email, service, tonnage, price, date, time, address, lat, lng, name, phone, description, contact_method } = req.body;
 
         const newBooking = await pool.query(
-            `INSERT INTO bookings (user_email, service, tonnage, price, date, time, address, lat, lng, name, phone) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-            [user_email, service, tonnage, price, date, time, address, lat, lng, name, phone]
+            `INSERT INTO bookings (user_email, service, tonnage, price, date, time, address, lat, lng, name, phone, description, contact_method) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+            [user_email, service, tonnage, price, date, time, address, lat, lng, name, phone, description, contact_method]
         );
 
         // Broadcast new job to all connected clients (workers)
@@ -204,6 +247,43 @@ app.put('/api/bookings/:id/accept', authenticateToken, async (req, res) => {
         io.emit('job_taken', result.rows[0]);
 
         res.json(result.rows[0]);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send("Server Error");
+    }
+});
+
+// Release Booking (Technician cancels BEFORE start - Penalty)
+app.put('/api/bookings/:id/release', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const technician_id = req.user.id;
+
+        // Atomic update: Only if accepted by this technician
+        const result = await pool.query(
+            "UPDATE bookings SET status = 'Pending', technician_id = NULL, technician_name = NULL WHERE id = $1 AND technician_id = $2 AND status = 'Accepted' RETURNING *",
+            [id, technician_id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(400).json({ error: "No se puede liberar. Verifica que el trabajo esté asignado a ti y no haya iniciado." });
+        }
+
+        // Apply Penalty
+        await pool.query("UPDATE users SET score = score - 10 WHERE id = $1", [technician_id]);
+
+        const releasedJob = result.rows[0];
+
+        // Notify others that a job is available again (reuse new_job or specific event)
+        io.emit('new_job', releasedJob); // Re-broadcast as if new? Or just update.
+        // Better: emit job_update to clear it from technician view, and new_job to add to others?
+        // Ideally clients handle this. 'job_update' with Pending might not trigger "Available" add in frontend logic if it filters by 'new_job' event only appending.
+        // Let's check frontend logic: socket.on('new_job') appends. socket.on('job_update') maps.
+        // If we emit 'job_update' with Pending, it will update in lists. But 'Available' list in Dashboard relies on 'Pending' status.
+        // We should emit 'job_update' so everyone updates the status.
+        io.emit('job_update', releasedJob);
+
+        res.json(releasedJob);
     } catch (err) {
         console.error(err.message);
         res.status(500).send("Server Error");
@@ -270,15 +350,63 @@ app.put('/api/bookings/:id/review', authenticateToken, async (req, res) => {
 });
 
 // Get Availability
+// Get Availability with Blocking Logic
 app.get('/api/bookings/availability', async (req, res) => {
     try {
         const { date } = req.query;
         if (!date) return res.status(400).json({ error: "Missing date parameter" });
 
-        const bookings = await pool.query("SELECT time FROM bookings WHERE date = $1", [date]);
-        const takenSlots = bookings.rows.map(b => b.time);
+        const result = await pool.query("SELECT time, service, tonnage FROM bookings WHERE date = $1 AND status != 'Cancelled'", [date]);
+        const bookings = result.rows;
 
-        res.json(takenSlots);
+        const blockedSlots = new Set();
+        // Generate available slots (10:00 to 16:00 in 30 min intervals)
+        const availableSlots = [];
+        for (let h = 10; h <= 16; h += 0.5) {
+            availableSlots.push(h);
+        }
+
+        bookings.forEach(booking => {
+            const startHour = parseInt(booking.time.split(':')[0]);
+            const startMin = parseInt(booking.time.split(':')[1]);
+            const decimalStart = startHour + (startMin / 60);
+
+            let serviceDuration = 1.5; // Default < 2 tons
+
+            // Determine duration based on rules
+            // User requested:
+            // < 2 tons: Block 1.5h (Free at +1.5h) e.g. 10 -> 11:30 free
+            // >= 2 tons: Block 3.0h (Free at +3.0h) e.g. 10 -> 13:00 free (blocks 12:30)
+
+            if (booking.service === 'Reparación') {
+                serviceDuration = 3.0; // Assume large block for repair safety
+            } else if (booking.tonnage >= 2) {
+                serviceDuration = 3.0;
+            } else {
+                serviceDuration = 1.5; // < 2 tons
+            }
+
+            // Note: User logic implies strict overlap checks WITHOUT extra travel buffer for the blocking calculation itself,
+            // or rather, the durations 1.5 and 3.0 ALREADY account for what the user wants to block.
+            // Example 1: 10:00 + 1.5 = 11:30. 11:30 is free. (Logic: slot < end)
+            // Example 2: 10:00 + 3.0 = 13:00. 13:00 is free. (Logic: slot < end) includes 12:30 block.
+
+            const decimalEnd = decimalStart + serviceDuration;
+
+            availableSlots.forEach(slot => {
+                // If the slot starts before the job ends, it's blocked.
+                // Strict inequality because if slot == end, it's the start of the next one.
+                if (slot >= decimalStart && slot < decimalEnd) {
+                    // Format slot back to HH:MM
+                    const hour = Math.floor(slot);
+                    const min = (slot % 1) * 60;
+                    const timeString = `${hour}:${min === 0 ? '00' : '30'}`;
+                    blockedSlots.add(timeString);
+                }
+            });
+        });
+
+        res.json(Array.from(blockedSlots));
     } catch (err) {
         console.error(err.message);
         res.status(500).send("Server Error");
