@@ -1,3 +1,5 @@
+require('dotenv').config(); // Load env vars first
+
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
@@ -8,8 +10,6 @@ const pool = require('./db');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-
-require('dotenv').config(); // Ensure dotenv is used for secret
 
 const app = express();
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_key_123'; // Logic for secret
@@ -40,7 +40,7 @@ const upload = multer({ storage: storage });
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "http://localhost:5173",
+        origin: "*", // Allow all origins for mobile/production flexibility
         methods: ["GET", "POST", "PUT"]
     }
 });
@@ -208,12 +208,12 @@ app.put('/api/bookings/:id/details', authenticateToken, async (req, res) => {
 // Create Booking
 app.post('/api/bookings', async (req, res) => {
     try {
-        const { user_email, service, tonnage, price, date, time, address, lat, lng, name, phone, description, contact_method } = req.body;
+        const { user_email, service, tonnage, price, date, time, address, lat, lng, name, phone, description, contact_method, quantity } = req.body;
 
         const newBooking = await pool.query(
-            `INSERT INTO bookings (user_email, service, tonnage, price, date, time, address, lat, lng, name, phone, description, contact_method) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
-            [user_email, service, tonnage, price, date, time, address, lat, lng, name, phone, description, contact_method]
+            `INSERT INTO bookings (user_email, service, tonnage, price, date, time, address, lat, lng, name, phone, description, contact_method, quantity) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
+            [user_email, service, tonnage, price, date, time, address, lat, lng, name, phone, description, contact_method, quantity || 1]
         );
 
         // Broadcast new job to all connected clients (workers)
@@ -278,7 +278,6 @@ app.put('/api/bookings/:id/release', authenticateToken, async (req, res) => {
         io.emit('new_job', releasedJob); // Re-broadcast as if new? Or just update.
         // Better: emit job_update to clear it from technician view, and new_job to add to others?
         // Ideally clients handle this. 'job_update' with Pending might not trigger "Available" add in frontend logic if it filters by 'new_job' event only appending.
-        // Let's check frontend logic: socket.on('new_job') appends. socket.on('job_update') maps.
         // If we emit 'job_update' with Pending, it will update in lists. But 'Available' list in Dashboard relies on 'Pending' status.
         // We should emit 'job_update' so everyone updates the status.
         io.emit('job_update', releasedJob);
@@ -455,7 +454,7 @@ app.get('/api/bookings', async (req, res) => {
     }
 });
 
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });

@@ -50,14 +50,29 @@ const Booking = () => {
         lat: 24.809065,
         lng: -107.394017,
         name: '',
-        phone: ''
+        phone: '',
+        contact_method: 'WhatsApp', // Default
+        contact_email: '',
+        problem_description: '',
+        manual_tonnage: 1 // Default for this step
     });
 
     useEffect(() => {
         if (user) {
-            setFormData(prev => ({ ...prev, name: user.name || '' }));
+            setFormData(prev => ({
+                ...prev,
+                name: user.name || '',
+                contact_email: user.email || '' // Pre-fill with user email
+            }));
         }
     }, [user]);
+
+    // ... (keep useEffects for availability and address) ... (Implicitly kept, targeting specific blocks)
+
+    // (This replace targets the formData init block and useEffect)
+
+    // (Wait, I need to split edits or target the whole upper block. I will target the top block first)
+
 
     // Fetch taken slots when date changes
     useEffect(() => {
@@ -131,22 +146,23 @@ const Booking = () => {
     };
 
     const handleNext = async () => {
-        if (step < 3) {
+        if (step < 4) {
             nextStep();
         } else {
             try {
-                // Build Description from Cart
-                const descriptionItems = cart.map(item => {
+                // Build Description from Cart + Manual Input
+                const cartDescription = cart.map(item => {
                     const tons = item.service !== 'Reparación' ? `(${item.tonnage} Ton)` : '';
                     return `${item.quantity}x ${item.service} ${tons}`;
-                });
-                const fullDescription = descriptionItems.join(', ');
+                }).join(', ');
+
+                const finalDescription = `Problema: ${formData.problem_description}. Items: ${cartDescription}`;
+
                 const totalPrice = getTotalPrice();
                 const primaryService = cart.length === 1 ? cart[0].service : 'Múltiple';
 
-                // Determine max tonnage for blocking rules (simulated)
-                // We'll take the max tonnage from the cart to be safe for blocking
-                const maxTonnage = Math.max(...cart.map(i => i.tonnage || 0));
+                // Determine max tonnage: Use manual if set (user explicit), else cart max
+                const maxTonnage = formData.manual_tonnage || Math.max(...cart.map(i => i.tonnage || 0)) || 1;
 
                 // Format address
                 const parts = formData.address.split(',');
@@ -156,13 +172,15 @@ const Booking = () => {
 
                 const bookingData = {
                     ...formData,
-                    formattedAddress, // Note: backend expects 'address', fixed below
+                    formattedAddress,
                     address: formattedAddress,
                     service: primaryService,
-                    description: fullDescription,
+                    description: finalDescription, // Join manual and cart
                     price: totalPrice,
-                    tonnage: maxTonnage, // For blocking logic
-                    user_email: user?.email || 'guest'
+                    tonnage: maxTonnage,
+                    user_email: user?.email || 'guest',
+                    contact_method: formData.contact_method,
+                    quantity: cart.reduce((acc, item) => acc + item.quantity, 0) // Total quantity
                 };
 
                 const response = await fetch('http://localhost:5000/api/bookings', {
@@ -190,13 +208,13 @@ const Booking = () => {
                     <ArrowLeft size={24} color="var(--color-deep-navy)" />
                 </button>
                 <h2 style={{ marginLeft: '16px' }}>
-                    {step === 1 ? 'Arma tu Pedido' : step === 2 ? '¿Cuándo vamos?' : 'Tus datos'}
+                    {step === 1 ? 'Arma tu Pedido' : step === 2 ? '¿Cuándo vamos?' : step === 3 ? 'Detalles' : 'Ubicación'}
                 </h2>
             </div>
 
             {/* Progress Bar */}
             <div style={{ display: 'flex', gap: '8px', marginBottom: '32px' }}>
-                {[1, 2, 3].map((s) => (
+                {[1, 2, 3, 4].map((s) => (
                     <div
                         key={s}
                         style={{
@@ -221,7 +239,7 @@ const Booking = () => {
                         exit="exit"
                         transition={{ x: { type: "spring", stiffness: 300, damping: 30 }, opacity: { duration: 0.2 } }}
                     >
-                        {/* Service Selection Grid */}
+                        {/* Service Selection Grid (Keep existing code structure by assuming it matches original file context if I could just perform insert, but replace_file needs mapped content. I will copy existing block) */}
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
                             <ServiceCard
                                 image={serviceCleaning}
@@ -322,7 +340,6 @@ const Booking = () => {
                                 </div>
                             </div>
                         )}
-
                     </motion.div>
                 )}
 
@@ -392,6 +409,82 @@ const Booking = () => {
                 {step === 3 && (
                     <motion.div
                         key="step3"
+                        custom={direction}
+                        variants={variants}
+                        initial="enter"
+                        animate="center"
+                        exit="exit"
+                        transition={{ x: { type: "spring", stiffness: 300, damping: 30 }, opacity: { duration: 0.2 } }}
+                    >
+                        <div className="glass-card" style={{ padding: '20px' }}>
+                            <h3 style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Wrench size={20} /> Detalles del Servicio
+                            </h3>
+
+                            <div style={{ marginBottom: '20px' }}>
+                                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>¿Qué problema tiene tu aire?</label>
+                                <textarea
+                                    value={formData.problem_description}
+                                    onChange={(e) => setFormData({ ...formData, problem_description: e.target.value })}
+                                    placeholder="Ej: No enfría, hace ruido extraño, tira agua..."
+                                    style={{
+                                        width: '100%',
+                                        padding: '12px',
+                                        borderRadius: 'var(--radius-md)',
+                                        border: '1px solid #ddd',
+                                        minHeight: '100px',
+                                        fontFamily: 'inherit',
+                                        resize: 'vertical'
+                                    }}
+                                />
+                            </div>
+
+                            <div style={{ marginBottom: '20px' }}>
+                                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Tonelaje de tu equipo:</label>
+                                <TonnageSelector
+                                    value={formData.manual_tonnage}
+                                    onChange={(t) => setFormData({ ...formData, manual_tonnage: t })}
+                                />
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '12px', fontWeight: '600' }}>Medio de contacto preferido:</label>
+                                <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+                                    {['WhatsApp', 'Correo Electrónico'].map(method => (
+                                        <button
+                                            key={method}
+                                            onClick={() => setFormData({ ...formData, contact_method: method })}
+                                            style={{
+                                                flex: 1,
+                                                padding: '12px',
+                                                borderRadius: '8px',
+                                                border: formData.contact_method === method ? '2px solid var(--color-action-blue)' : '1px solid #ddd',
+                                                backgroundColor: formData.contact_method === method ? '#E3F2FD' : 'white',
+                                                color: formData.contact_method === method ? 'var(--color-action-blue)' : '#666',
+                                                fontWeight: formData.contact_method === method ? 'bold' : 'normal',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            {method}
+                                        </button>
+                                    ))}
+                                </div>
+                                {formData.contact_method === 'Correo Electrónico' && (
+                                    <Input
+                                        placeholder="Tu correo electrónico"
+                                        type="email"
+                                        value={formData.contact_email}
+                                        onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+
+                {step === 4 && (
+                    <motion.div
+                        key="step4"
                         custom={direction}
                         variants={variants}
                         initial="enter"
@@ -497,10 +590,11 @@ const Booking = () => {
                     disabled={
                         (step === 1 && cart.length === 0) ||
                         (step === 2 && (!formData.date || !formData.time)) ||
-                        (step === 3 && (!formData.address || !formData.addressDetails || !formData.name || !formData.phone))
+                        (step === 3 && (!formData.problem_description || (formData.contact_method === 'Correo Electrónico' && !formData.contact_email))) ||
+                        (step === 4 && (!formData.address || !formData.addressDetails || !formData.name || !formData.phone))
                     }
                 >
-                    {step === 3 ? 'Confirmar Pedido' : 'Continuar'}
+                    {step === 4 ? 'Confirmar Pedido' : 'Continuar'}
                 </Button>
             </div>
         </div >
