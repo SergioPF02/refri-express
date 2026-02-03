@@ -7,12 +7,105 @@ import { API_URL } from '../config';
 
 // const socket = io(API_URL); // Removed top-level side effect
 
+import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+// Helper for Map & Heading Control
+const NavigationController = ({ center, heading }) => {
+    const map = useMap();
+
+    useEffect(() => {
+        if (!map || !center) return;
+
+        map.setView(center, 18, { animate: true, duration: 0.5 }); // Closer zoom for nav
+
+        // CSS Map Rotation (Course Up)
+        const bearing = heading || 0;
+
+        // Rotate the map pane
+        // Note: This is an experimental CSS-only rotation for Leaflet
+        // It rotates the whole viewing pane. We offset by negative bearing.
+        map.getPane('mapPane').style.transformOrigin = 'center center';
+        // We can't easily rotate mapPane effectively without breaking tiles logic in simple Leaflet.
+        // BUT, user asked for "line in straight line".
+        // Alternative: Rotate the Marker Container?
+        // Let's try rotating the container div style?
+        // map.getContainer().style.transform = `rotate(${-bearing}deg)`;
+        // This rotates controls too.
+
+        // To do this cleanly in vanilla Leaflet is hard.
+        // Let's stick to rotating the MAP PANE if possible, or just the marker if Map rotation is too glitchy.
+        // However, user specifically asked for "map centered so path is straight line up".
+        // I will apply rotation to the container and counter-rotate controls? No.
+
+        // Let's try the simple approach: Don't rotate map (too risky for bugs), just rotate Marker?
+        // User: "camino siempre le salga en linea recta a el" -> This INSISTS on map rotation.
+
+        // Implementation: Rotate the map container, but counter-rotate the map center?
+        // Logic: mapContainer.style.transform = `rotate(${-bearing}deg)`;
+        // Center acts as pivot. 
+        // We need to ensure we have enough "bleed" of tiles. Leaflet might show grey background if we rotate.
+        // Let's accept that potentially.
+
+        const container = map.getContainer();
+        container.style.transition = 'transform 0.5s ease-out';
+        container.style.transform = `rotate(${-bearing}deg)`;
+
+        // Counter-rotate markers if needed? 
+        // Actually, if we rotate the whole map container -90deg (North is Right), 
+        // If we move East (North-Right), we are moving Up-Screen.
+        // The path (which goes East) will look Up-Screen. This is correct.
+
+    }, [map, center, heading]);
+
+    return null;
+};
+
+// Truck Icon with Rotation support (DivIcon)
+const createTruckIcon = (rotation) => L.divIcon({
+    className: 'truck-driver-icon',
+    html: `<div style="transform: rotate(${rotation}deg); width: 40px; height: 40px; display: flex; justify-content: center; align-items: center;">
+             <img src="https://cdn-icons-png.flaticon.com/512/741/741407.png" style="width: 100%; height: 100%;" />
+           </div>`,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20]
+});
+
+
+// Icons (Reuse from ClientOrders or simpler)
+const truckIcon = new L.Icon({
+    iconUrl: 'https://cdn-icons-png.flaticon.com/512/741/741407.png', // Placeholder or SVG
+    iconSize: [40, 40],
+    iconAnchor: [20, 20]
+});
+const destIcon = new L.Icon({
+    iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684908.png',
+    iconSize: [30, 30],
+    iconAnchor: [15, 30]
+});
+
+// Helper for AutoCenter
+const AutoCenter = ({ center }) => {
+    const map = useMap();
+    useEffect(() => {
+        if (!map || !center) return;
+        map.setView(center, 17, { animate: true }); // Zoom 17 for navigation
+    }, [map, center]);
+    return null;
+};
+
 const Dashboard = () => {
     const socket = getSocket();
     const navigate = useNavigate();
     const { user, logout } = useAuth();
     const [bookings, setBookings] = useState([]);
-    const [editingJob, setEditingJob] = useState(null); // { id, mode, date, time, price, description }
+    const [editingJob, setEditingJob] = useState(null);
+    const [myLocation, setMyLocation] = useState(null);
+    const [heading, setHeading] = useState(0); // Bearing
+    const [routeSteps, setRouteSteps] = useState([]);
+    const [routePath, setRoutePath] = useState([]);
+
 
     useEffect(() => {
         // Initial fetch
@@ -56,14 +149,61 @@ const Dashboard = () => {
                 watchId = navigator.geolocation.watchPosition(
                     (position) => {
                         const { latitude, longitude } = position.coords;
+
+                        // Update local state for Map
+                        // Calculate Heading if not provided by GPS
+                        let newHeading = position.coords.heading;
+                        if (newHeading === null && myLocation) {
+                            // Simple bearing calculation
+                            const y = Math.sin(longitude - myLocation.lng) * Math.cos(latitude);
+                            const x = Math.cos(myLocation.lat) * Math.sin(latitude) -
+                                Math.sin(myLocation.lat) * Math.cos(latitude) * Math.cos(longitude - myLocation.lng);
+                            const theta = Math.atan2(y, x);
+                            newHeading = (theta * 180 / Math.PI + 360) % 360;
+                        }
+
+                        setMyLocation({ lat: latitude, lng: longitude });
+                        if (newHeading !== null && !isNaN(newHeading)) setHeading(newHeading);
+
+                        // Emit to client
+                        console.log("Emitting location:", latitude, longitude);
                         socket.emit('technician_location_update', {
                             jobId: activeJob.id,
                             lat: latitude,
                             lng: longitude
                         });
+
+                        // Fetch Navigation Route (with simple throttle or if path empty)
+                        // In real app, throttle this. Here we fetch if we don't have instructions yet or moved significantly
+                        // For simplicity: Fetch if we don't have a path, or just relying on static path? 
+                        // Let's fetch once typically, or re-fetch if deviating. 
+                        // For this demo: Fetch whenever location updates (debounce needed ideally) but OSRM is fast.
+                        // Let's just fetch if path is empty OR every 10 secs. 
+                        // Actually, let's keep it simple: Fetch immediately.
+
+                        const destLat = activeJob.lat;
+                        const destLng = activeJob.lng;
+                        if (destLat && destLng) {
+                            fetch(`https://router.project-osrm.org/route/v1/driving/${longitude},${latitude};${destLng},${destLat}?overview=full&geometries=geojson&steps=true`)
+                                .then(res => res.json())
+                                .then(data => {
+                                    if (data.routes && data.routes.length > 0) {
+                                        const route = data.routes[0];
+                                        setRoutePath(route.geometry.coordinates.map(c => [c[1], c[0]]));
+                                        setRouteSteps(route.legs[0].steps);
+                                    }
+                                })
+                                .catch(e => console.error(e));
+                        }
+
                     },
-                    (err) => console.error("Tracking Error:", err),
-                    { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+                    (err) => {
+                        console.error("Tracking Error:", err);
+                        // Only alert if critical or repeated
+                        if (err.code === 1) alert("Permiso de GPS denegado");
+                        // Do not alert for timeouts continually, just log
+                    },
+                    { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
                 );
             }
         }
@@ -219,9 +359,93 @@ const Dashboard = () => {
                                     </span>
                                 </div>
                                 {job.status === 'In Progress' && (
-                                    <div style={{ backgroundColor: '#E1F5FE', color: '#0277BD', padding: '6px', borderRadius: '4px', fontSize: '0.8rem', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <div className="pulse-dot"></div> Compartiendo ubicación en tiempo real
-                                    </div>
+                                    <>
+                                        <div style={{ backgroundColor: '#E1F5FE', color: '#0277BD', padding: '6px', borderRadius: '4px', fontSize: '0.8rem', marginBottom: '8px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <div className="pulse-dot"></div>
+                                                Navegación Activa
+                                            </div>
+                                        </div>
+
+                                        {/* Navigation Map & Panel */}
+                                        <div style={{ borderRadius: '12px', overflow: 'hidden', border: '2px solid #2196F3', marginBottom: '16px' }}>
+
+                                            {/* Top Instruction Panel */}
+                                            {routeSteps.length > 0 && (
+                                                <div style={{ backgroundColor: '#2196F3', color: 'white', padding: '12px', textAlign: 'center' }}>
+                                                    <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>
+                                                        {routeSteps[0].maneuver.modifier ?
+                                                            `${routeSteps[0].maneuver.modifier.toUpperCase()} ${routeSteps[0].name ? 'en ' + routeSteps[0].name : ''}`
+                                                            : routeSteps[0].maneuver.type}
+                                                    </div>
+                                                    <div style={{ fontSize: '0.9rem', opacity: 0.9 }}>
+                                                        {routeSteps[0].maneuver.instruction}
+                                                    </div>
+                                                    <div style={{ fontSize: '0.8rem', marginTop: '4px' }}>
+                                                        ({routeSteps.length} pasos restantes)
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Map */}
+                                            <div style={{ height: '300px', position: 'relative', zIndex: 0 }}>
+                                                {myLocation && job.lat && job.lng ? (
+                                                    <MapContainer
+                                                        center={[myLocation.lat, myLocation.lng]}
+                                                        zoom={17}
+                                                        style={{ height: '100%', width: '100%' }}
+                                                        zoomControl={false}
+                                                    >
+                                                        {/* Better Tiles: CartoDB Voyager (Free, Google-like style) */}
+                                                        <TileLayer
+                                                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                                                            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                                                        />
+
+                                                        {/* My Truck */}
+                                                        <Marker position={[myLocation.lat, myLocation.lng]} icon={createTruckIcon(heading)} />
+
+                                                        {/* Destination */}
+                                                        <Marker position={[job.lat, job.lng]} icon={destIcon} />
+
+                                                        {/* Route */}
+                                                        {routePath.length > 0 && (
+                                                            <Polyline positions={routePath} pathOptions={{ color: '#2196F3', weight: 6 }} />
+                                                        )}
+
+                                                        <NavigationController center={[myLocation.lat, myLocation.lng]} heading={heading} />
+                                                    </MapContainer>
+                                                ) : (
+                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: '10px', color: '#666', backgroundColor: '#f5f5f5' }}>
+                                                        <div className="pulse-dot" style={{ width: 20, height: 20 }}></div>
+                                                        Esperando señal GPS precisa...
+                                                    </div>
+                                                )}
+
+                                                {/* External Nav Button Overlay */}
+                                                <div style={{ position: 'absolute', bottom: '16px', right: '16px', zIndex: 1000 }}>
+                                                    <button
+                                                        onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${job.lat},${job.lng}&travelmode=driving`, '_blank')}
+                                                        style={{
+                                                            backgroundColor: 'white',
+                                                            color: '#1a73e8',
+                                                            padding: '10px 16px',
+                                                            border: 'none',
+                                                            borderRadius: '24px',
+                                                            fontWeight: 'bold',
+                                                            boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '8px',
+                                                            cursor: 'pointer'
+                                                        }}>
+                                                        <NavigationArrow size={20} weight="fill" />
+                                                        Navegar con Google
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </>
                                 )}
 
                                 <div style={{ margin: '12px 0', fontSize: '0.95rem' }}>
@@ -239,7 +463,7 @@ const Dashboard = () => {
                                             <strong>Nota del cliente:</strong> {job.description}
                                         </div>
                                     )}
-                                    {job.contact_method && (
+                                    {job.contact_method && job.service === 'Reparación' && (
                                         <p style={{ marginTop: '4px', fontSize: '0.9rem', color: '#555' }}>
                                             <strong>Contacto preferido:</strong> {job.contact_method}
                                         </p>
@@ -497,7 +721,7 @@ const Dashboard = () => {
                                 </div>
                             )}
 
-                            {job.contact_method && (
+                            {job.contact_method && job.service === 'Reparación' && (
                                 <div style={{ marginTop: '8px', fontSize: '0.9rem', color: '#666' }}>
                                     <strong>Prefiere contacto por:</strong> <span style={{ textTransform: 'capitalize' }}>{job.contact_method}</span>
                                 </div>

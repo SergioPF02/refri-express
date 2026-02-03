@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Drop, Fire, Wrench, Calendar, MapPin, User, Trash, X, Plus, Minus } from 'phosphor-react';
+import { ArrowLeft, Drop, Fire, Wrench, Calendar as CalendarIcon, MapPin, User, Trash, X, Plus, Minus } from 'phosphor-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Calendar from 'react-calendar'; // Import Calendar
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/Button';
 import ServiceCard from '../components/ServiceCard';
@@ -11,6 +12,7 @@ import MapSelector from '../components/MapSelector';
 import serviceCleaning from '../assets/service-cleaning.png';
 import serviceGas from '../assets/service-gas.png';
 import { API_URL } from '../config';
+import '../components/Calendar.css'; // Import Styles
 
 const Booking = () => {
     const navigate = useNavigate();
@@ -20,6 +22,7 @@ const Booking = () => {
     const [suggestions, setSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [takenSlots, setTakenSlots] = useState([]);
+    const [monthlyStats, setMonthlyStats] = useState({}); // Store date -> level
 
     const variants = {
         enter: (direction) => ({
@@ -68,12 +71,29 @@ const Booking = () => {
         }
     }, [user]);
 
-    // ... (keep useEffects for availability and address) ... (Implicitly kept, targeting specific blocks)
+    // Fetch monthly stats on mount (current month)
+    useEffect(() => {
+        const today = new Date();
+        fetchStats(today.getFullYear(), today.getMonth() + 1);
+    }, []);
 
-    // (This replace targets the formData init block and useEffect)
+    const fetchStats = (year, month) => {
+        fetch(`${API_URL}/api/bookings/stats?year=${year}&month=${month}`)
+            .then(res => res.json())
+            .then(data => {
+                const statsMap = {};
+                data.forEach(item => {
+                    statsMap[item.date] = item.level;
+                });
+                setMonthlyStats(statsMap);
+            })
+            .catch(console.error);
+    };
 
-    // (Wait, I need to split edits or target the whole upper block. I will target the top block first)
-
+    // Handle Month Change in Calendar
+    const onActiveStartDateChange = ({ activeStartDate }) => {
+        fetchStats(activeStartDate.getFullYear(), activeStartDate.getMonth() + 1);
+    };
 
     // Fetch taken slots when date changes
     useEffect(() => {
@@ -195,7 +215,7 @@ const Booking = () => {
                     price: totalPrice,
                     tonnage: maxTonnage,
                     user_email: user?.email || 'guest',
-                    contact_method: formData.contact_method,
+                    contact_method: isRepairIncluded ? formData.contact_method : 'App', // Only set contact method for Repairs
                     quantity: cart.reduce((acc, item) => acc + item.quantity, 0)
                 };
 
@@ -215,6 +235,23 @@ const Booking = () => {
                 alert('Error connecting to server');
             }
         }
+    };
+
+    const getTileClassName = ({ date, view }) => {
+        if (view === 'month') {
+            // Check if date is in past
+            const now = new Date();
+            now.setHours(0, 0, 0, 0);
+            if (date < now) return 'disabled';
+
+            const dateStr = date.toISOString().split('T')[0];
+            const level = monthlyStats[dateStr] || 'high'; // Default high if no data (assume empty)
+
+            if (level === 'high') return 'high-availability';
+            if (level === 'low') return 'low-availability';
+            if (level === 'none') return 'no-availability';
+        }
+        return '';
     };
 
     return (
@@ -370,20 +407,40 @@ const Booking = () => {
                         exit="exit"
                         transition={{ x: { type: "spring", stiffness: 300, damping: 30 }, opacity: { duration: 0.2 } }}
                     >
-                        <div className="glass-card" style={{ padding: '20px' }}>
-                            <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <Calendar size={20} /> Fecha y Hora
-                            </h3>
-                            <Input
-                                type="date"
-                                value={formData.date}
-                                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                                min={new Date().toISOString().split('T')[0]}
-                            />
+                        <div className="glass-card" style={{ padding: '0px', overflow: 'hidden' }}>
+                            <div style={{ padding: '20px' }}>
+                                <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <CalendarIcon size={20} /> Fecha y Hora
+                                </h3>
+
+                                <Calendar
+                                    onChange={(date) => setFormData({ ...formData, date: date.toISOString().split('T')[0] })}
+                                    value={formData.date ? new Date(formData.date + 'T12:00:00') : null}
+                                    minDate={new Date()}
+                                    className="react-calendar"
+                                    tileClassName={getTileClassName}
+                                    onActiveStartDateChange={onActiveStartDateChange}
+                                />
+
+                                {/* Legend */}
+                                <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', marginTop: '16px', fontSize: '0.8rem', color: '#666' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <div style={{ width: '16px', height: '16px', backgroundColor: 'rgba(76, 175, 80, 0.2)', border: '1px solid #4CAF50', borderRadius: '50%' }}></div> Alta
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <div style={{ width: '16px', height: '16px', backgroundColor: 'rgba(255, 193, 7, 0.2)', border: '1px solid #FFC107', borderRadius: '50%' }}></div> Baja
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <div style={{ width: '16px', height: '16px', backgroundColor: '#e0e0e0', borderRadius: '50%' }}></div> Llena
+                                    </div>
+                                </div>
+                            </div>
 
                             {formData.date && (
-                                <>
-                                    <h4 style={{ marginTop: '16px', marginBottom: '8px', fontSize: '0.9rem', color: '#666' }}>Horarios Disponibles (10:00 - 16:00):</h4>
+                                <div style={{ padding: '20px', backgroundColor: '#f9f9f9', borderTop: '1px solid #eee' }}>
+                                    <h4 style={{ marginBottom: '12px', fontSize: '0.9rem', color: '#666' }}>
+                                        Horarios para el {formData.date}:
+                                    </h4>
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
                                         {(() => {
                                             const slots = [];
@@ -403,12 +460,13 @@ const Booking = () => {
                                                             padding: '8px',
                                                             borderRadius: '8px',
                                                             border: isSelected ? '2px solid var(--color-action-blue)' : '1px solid #ddd',
-                                                            backgroundColor: isSelected ? '#E3F2FD' : (isTaken ? '#f5f5f5' : 'white'),
-                                                            color: isTaken ? '#ccc' : (isSelected ? 'var(--color-action-blue)' : '#333'),
+                                                            backgroundColor: isSelected ? '#E3F2FD' : (isTaken ? '#e0e0e0' : 'white'),
+                                                            color: isTaken ? '#aaa' : (isSelected ? 'var(--color-action-blue)' : '#333'),
                                                             cursor: isTaken ? 'not-allowed' : 'pointer',
                                                             fontWeight: isSelected ? 'bold' : 'normal',
                                                             textDecoration: isTaken ? 'line-through' : 'none',
-                                                            fontSize: '0.85rem'
+                                                            fontSize: '0.85rem',
+                                                            boxShadow: isSelected ? '0 2px 4px rgba(33, 150, 243, 0.2)' : 'none'
                                                         }}
                                                     >
                                                         {time}
@@ -417,7 +475,7 @@ const Booking = () => {
                                             });
                                         })()}
                                     </div>
-                                </>
+                                </div>
                             )}
                         </div>
                     </motion.div>
@@ -565,37 +623,39 @@ const Booking = () => {
                                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                             />
 
-                            <div style={{ marginTop: '16px' }}>
-                                <label style={{ display: 'block', marginBottom: '12px', fontWeight: '600' }}>Medio de contacto preferido:</label>
-                                <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
-                                    {['WhatsApp', 'Correo Electrónico'].map(method => (
-                                        <button
-                                            key={method}
-                                            onClick={() => setFormData({ ...formData, contact_method: method })}
-                                            style={{
-                                                flex: 1,
-                                                padding: '12px',
-                                                borderRadius: '8px',
-                                                border: formData.contact_method === method ? '2px solid var(--color-action-blue)' : '1px solid #ddd',
-                                                backgroundColor: formData.contact_method === method ? '#E3F2FD' : 'white',
-                                                color: formData.contact_method === method ? 'var(--color-action-blue)' : '#666',
-                                                fontWeight: formData.contact_method === method ? 'bold' : 'normal',
-                                                cursor: 'pointer'
-                                            }}
-                                        >
-                                            {method}
-                                        </button>
-                                    ))}
+                            {isRepairIncluded && (
+                                <div style={{ marginTop: '16px' }}>
+                                    <label style={{ display: 'block', marginBottom: '12px', fontWeight: '600' }}>Medio de contacto preferido:</label>
+                                    <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+                                        {['WhatsApp', 'Correo Electrónico'].map(method => (
+                                            <button
+                                                key={method}
+                                                onClick={() => setFormData({ ...formData, contact_method: method })}
+                                                style={{
+                                                    flex: 1,
+                                                    padding: '12px',
+                                                    borderRadius: '8px',
+                                                    border: formData.contact_method === method ? '2px solid var(--color-action-blue)' : '1px solid #ddd',
+                                                    backgroundColor: formData.contact_method === method ? '#E3F2FD' : 'white',
+                                                    color: formData.contact_method === method ? 'var(--color-action-blue)' : '#666',
+                                                    fontWeight: formData.contact_method === method ? 'bold' : 'normal',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                {method}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    {formData.contact_method === 'Correo Electrónico' && (
+                                        <Input
+                                            placeholder="Tu correo electrónico"
+                                            type="email"
+                                            value={formData.contact_email}
+                                            onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
+                                        />
+                                    )}
                                 </div>
-                                {formData.contact_method === 'Correo Electrónico' && (
-                                    <Input
-                                        placeholder="Tu correo electrónico"
-                                        type="email"
-                                        value={formData.contact_email}
-                                        onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
-                                    />
-                                )}
-                            </div>
+                            )}
                         </div>
                     </motion.div>
                 )}

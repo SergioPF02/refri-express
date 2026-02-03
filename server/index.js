@@ -1,4 +1,4 @@
-require('dotenv').config(); // Load env vars first
+require('dotenv').config(); // Load env vars first by restarting
 
 const express = require('express');
 const cors = require('cors');
@@ -410,9 +410,62 @@ app.get('/api/bookings/availability', async (req, res) => {
         console.error(err.message);
         res.status(500).send("Server Error");
     }
+}); // End of availability endpoint
+
+// Get Monthly Stats (For Calendar Colors)
+app.get('/api/bookings/stats', async (req, res) => {
+    try {
+        const { year, month } = req.query; // Month is 1-12
+        if (!year || !month) return res.status(400).json({ error: "Missing year/month" });
+
+        // Query to get all bookings in that month
+        // Construct date range
+        const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
+        // End date could be logic, but simpler to just query "WHERE date LIKE 'YYYY-MM-%'"
+        // But date is stored as string 'YYYY-MM-DD' usually.
+        // Let's use string matching or date functions if Postgres.
+        // Assuming 'date' column is text 'YYYY-MM-DD' as per previous inserts.
+
+        const pattern = `${year}-${month.toString().padStart(2, '0')}-%`;
+
+        const result = await pool.query(
+            "SELECT date::text as date_str, service, tonnage FROM bookings WHERE date::text LIKE $1 AND status != 'Cancelled'",
+            [pattern]
+        );
+
+        const dailyLoad = {};
+
+        result.rows.forEach(row => {
+            const date = row.date_str; // "2024-05-15"
+            if (!dailyLoad[date]) dailyLoad[date] = 0;
+
+            // Calculate duration roughly
+            let duration = 1.5;
+            if (row.service === 'Reparación' || row.tonnage >= 2) {
+                duration = 3.0;
+            }
+            dailyLoad[date] += duration;
+        });
+
+        // Determine Level: Green (<3h), Yellow (3-5h), Grey (>5h)
+        // Total capacity = 6 hours (10 to 16)
+        const stats = Object.keys(dailyLoad).map(date => {
+            const load = dailyLoad[date];
+            let level = 'high'; // Green
+            if (load >= 5) level = 'none'; // Grey (Full)
+            else if (load >= 3) level = 'low'; // Yellow
+
+            return { date, level, load };
+        });
+
+        res.json(stats);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send("Server Error");
+    }
 });
 
-// Get Notifications
+// Get Availability with Blocking Logic
 app.get('/api/notifications', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(

@@ -43,13 +43,13 @@ const destinationIcon = new L.Icon({
 });
 
 // Component to fit map bounds to show both points
-const FitBounds = ({ markers }) => {
+// Component to follow the technician
+const AutoCenter = ({ center }) => {
     const map = useMap();
     useEffect(() => {
-        if (!map || markers.length === 0) return;
-        const group = L.featureGroup(markers.map(m => L.marker(m)));
-        map.fitBounds(group.getBounds(), { padding: [50, 50] });
-    }, [map, markers]);
+        if (!map || !center) return;
+        map.setView(center, 16, { animate: true, duration: 1 });
+    }, [map, center]);
     return null;
 };
 
@@ -66,8 +66,36 @@ const ClientOrders = () => {
     const { user } = useAuth();
     const [orders, setOrders] = useState([]);
     const [technicianLocations, setTechnicianLocations] = useState({}); // { jobId: { lat, lng } }
+    const [routeCoordinates, setRouteCoordinates] = useState({}); // { jobId: [[lat, lng], ...] }
 
-    // ... (fetchOrders effect)
+    // Fetch Route from OSRM
+    useEffect(() => {
+        orders.forEach(order => {
+            if (order.status === 'In Progress' && technicianLocations[order.id]) {
+                const techPos = technicianLocations[order.id];
+                const destLat = order.lat;
+                const destLng = order.lng;
+
+                // Simple cache/debounce check: avoid refetching if very close (optional, skipping for simplicity)
+
+                // Format: lng,lat;lng,lat
+                const url = `https://router.project-osrm.org/route/v1/driving/${techPos.lng},${techPos.lat};${destLng},${destLat}?overview=full&geometries=geojson`;
+
+                fetch(url)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.routes && data.routes.length > 0) {
+                            // OSRM returns [lng, lat], Leaflet needs [lat, lng]
+                            const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+                            setRouteCoordinates(prev => ({ ...prev, [order.id]: coords }));
+                        }
+                    })
+                    .catch(e => { });
+            }
+        });
+    }, [technicianLocations, orders]);
+
+
 
     useEffect(() => {
         // ... (existing listeners)
@@ -280,17 +308,24 @@ const ClientOrders = () => {
 
                                                 {/* Trajectory Polyline */}
                                                 <Polyline
-                                                    positions={[
-                                                        [technicianLocations[order.id].lat, technicianLocations[order.id].lng],
-                                                        [order.lat, order.lng]
-                                                    ]}
-                                                    pathOptions={{ color: '#2196F3', dashArray: '10, 10', weight: 4, opacity: 0.7 }}
+                                                    positions={
+                                                        routeCoordinates[order.id] || [
+                                                            [technicianLocations[order.id].lat, technicianLocations[order.id].lng],
+                                                            [order.lat, order.lng]
+                                                        ]
+                                                    }
+                                                    pathOptions={{
+                                                        color: '#2196F3',
+                                                        weight: 5,
+                                                        opacity: 0.8,
+                                                        lineJoin: 'round'
+                                                    }}
                                                 />
 
-                                                {/* Auto-fit bounds */}
-                                                <FitBounds markers={[
-                                                    [technicianLocations[order.id].lat, technicianLocations[order.id].lng],
-                                                    [order.lat, order.lng]
+                                                {/* Follow Technician */}
+                                                <AutoCenter center={[
+                                                    technicianLocations[order.id].lat,
+                                                    technicianLocations[order.id].lng
                                                 ]} />
                                             </MapContainer>
                                         ) : (
