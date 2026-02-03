@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { API_URL } from '../config';
+import { Preferences } from '@capacitor/preferences';
+import { PushNotifications } from '@capacitor/push-notifications';
+import { Capacitor } from '@capacitor/core';
 
 const AuthContext = createContext();
 
@@ -10,18 +13,74 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Check local storage for existing session
-        const storedUser = localStorage.getItem('refri_user');
-        if (storedUser) {
+        const checkSession = async () => {
             try {
-                setUser(JSON.parse(storedUser));
+                const { value } = await Preferences.get({ key: 'refri_user' });
+                if (value) {
+                    setUser(JSON.parse(value));
+                }
             } catch (error) {
                 console.error("Failed to parse user session", error);
-                localStorage.removeItem('refri_user');
+                await Preferences.remove({ key: 'refri_user' });
+            } finally {
+                setLoading(false);
             }
-        }
-        setLoading(false);
+        };
+        checkSession();
     }, []);
+
+    // Push Notifications Logic
+    useEffect(() => {
+        const setupPush = async () => {
+            if (user && Capacitor.getPlatform() !== 'web') {
+                try {
+                    await PushNotifications.removeAllListeners();
+
+                    let perm = await PushNotifications.checkPermissions();
+                    if (perm.receive === 'prompt') {
+                        perm = await PushNotifications.requestPermissions();
+                    }
+                    if (perm.receive !== 'granted') {
+                        console.log('Push permissions denied');
+                        return;
+                    }
+
+                    await PushNotifications.register();
+
+                    PushNotifications.addListener('registration', async (token) => {
+                        console.log('Push Token:', token.value);
+                        // Send to backend
+                        try {
+                            await fetch(`${API_URL}/api/users/device-token`, {
+                                method: 'PUT',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${user.token}`
+                                },
+                                body: JSON.stringify({ token: token.value })
+                            });
+                        } catch (err) {
+                            console.error("Error sending token to backend", err);
+                        }
+                    });
+
+                    PushNotifications.addListener('pushNotificationReceived', (notification) => {
+                        console.log('Push Received:', notification);
+                        // Optional: Show alert or toast if app is open
+                    });
+
+                    PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+                        console.log('Push Action:', notification);
+                        // Navigate?
+                    });
+
+                } catch (e) {
+                    console.error("Push Setup Failed", e);
+                }
+            }
+        };
+        setupPush();
+    }, [user]);
 
     const login = async (userData) => {
         try {
@@ -34,7 +93,7 @@ export const AuthProvider = ({ children }) => {
 
             if (response.ok) {
                 setUser(data);
-                localStorage.setItem('refri_user', JSON.stringify(data));
+                await Preferences.set({ key: 'refri_user', value: JSON.stringify(data) });
                 return true;
             } else {
                 alert(data.error);
@@ -47,9 +106,9 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const logout = () => {
+    const logout = async () => {
         setUser(null);
-        localStorage.removeItem('refri_user');
+        await Preferences.remove({ key: 'refri_user' });
     };
 
     const register = async (userData) => {
@@ -71,7 +130,7 @@ export const AuthProvider = ({ children }) => {
             if (response.ok) {
                 // Auto login after register
                 setUser(data);
-                localStorage.setItem('refri_user', JSON.stringify(data));
+                await Preferences.set({ key: 'refri_user', value: JSON.stringify(data) });
                 return true;
             } else {
                 let errorMsg = data.error || "Error al registrarse";

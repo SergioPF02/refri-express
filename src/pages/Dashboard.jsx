@@ -11,6 +11,8 @@ import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { Geolocation } from '@capacitor/geolocation';
+import NotificationBell from '../components/NotificationBell';
 
 // Helper for Map & Heading Control
 const NavigationController = ({ center, heading }) => {
@@ -172,74 +174,83 @@ const Dashboard = () => {
         // Check for active In Progress jobs
         const activeJob = bookings.find(b => b.technician_id === user.id && b.status === 'In Progress');
 
-        let watchId;
+        let watchId = null;
+
         if (activeJob) {
             console.log("Starting tracking for job:", activeJob.id);
-            if (navigator.geolocation) {
-                watchId = navigator.geolocation.watchPosition(
-                    (position) => {
-                        const { latitude, longitude } = position.coords;
-
-                        // Update local state for Map
-                        // Calculate Heading if not provided by GPS
-                        let newHeading = position.coords.heading;
-                        if (newHeading === null && myLocation) {
-                            // Simple bearing calculation
-                            const y = Math.sin(longitude - myLocation.lng) * Math.cos(latitude);
-                            const x = Math.cos(myLocation.lat) * Math.sin(latitude) -
-                                Math.sin(myLocation.lat) * Math.cos(latitude) * Math.cos(longitude - myLocation.lng);
-                            const theta = Math.atan2(y, x);
-                            newHeading = (theta * 180 / Math.PI + 360) % 360;
+            const startTracking = async () => {
+                try {
+                    // Check Permission First
+                    const status = await Geolocation.checkPermissions();
+                    if (status.location !== 'granted') {
+                        const request = await Geolocation.requestPermissions();
+                        if (request.location !== 'granted') {
+                            alert("Se requiere permiso de GPS para la navegación.");
+                            return;
                         }
+                    }
 
-                        setMyLocation({ lat: latitude, lng: longitude });
-                        if (newHeading !== null && !isNaN(newHeading)) setHeading(newHeading);
-
-                        // Emit to client
-                        console.log("Emitting location:", latitude, longitude);
-                        socket.emit('technician_location_update', {
-                            jobId: activeJob.id,
-                            lat: latitude,
-                            lng: longitude
-                        });
-
-                        // Fetch Navigation Route (with simple throttle or if path empty)
-                        // In real app, throttle this. Here we fetch if we don't have instructions yet or moved significantly
-                        // For simplicity: Fetch if we don't have a path, or just relying on static path? 
-                        // Let's fetch once typically, or re-fetch if deviating. 
-                        // For this demo: Fetch whenever location updates (debounce needed ideally) but OSRM is fast.
-                        // Let's just fetch if path is empty OR every 10 secs. 
-                        // Actually, let's keep it simple: Fetch immediately.
-
-                        const destLat = activeJob.lat;
-                        const destLng = activeJob.lng;
-                        if (destLat && destLng) {
-                            fetch(`https://router.project-osrm.org/route/v1/driving/${longitude},${latitude};${destLng},${destLat}?overview=full&geometries=geojson&steps=true`)
-                                .then(res => res.json())
-                                .then(data => {
-                                    if (data.routes && data.routes.length > 0) {
-                                        const route = data.routes[0];
-                                        setRoutePath(route.geometry.coordinates.map(c => [c[1], c[0]]));
-                                        setRouteSteps(route.legs[0].steps);
-                                    }
-                                })
-                                .catch(e => console.error(e));
+                    // Watch Position
+                    watchId = await Geolocation.watchPosition({
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 5000
+                    }, (position, err) => {
+                        if (err) {
+                            console.error("Tracking error:", err);
+                            return;
                         }
+                        if (position) {
+                            const { latitude, longitude, heading: gpsHeading } = position.coords;
 
-                    },
-                    (err) => {
-                        console.error("Tracking Error:", err);
-                        // Only alert if critical or repeated
-                        if (err.code === 1) alert("Permiso de GPS denegado");
-                        // Do not alert for timeouts continually, just log
-                    },
-                    { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
-                );
-            }
+                            // Calculate Heading logic
+                            let newHeading = gpsHeading;
+                            if ((newHeading === null || isNaN(newHeading)) && myLocation) {
+                                // Basic calculation if GPS doesn't provide it
+                                const y = Math.sin(longitude - myLocation.lng) * Math.cos(latitude);
+                                const x = Math.cos(myLocation.lat) * Math.sin(latitude) -
+                                    Math.sin(myLocation.lat) * Math.cos(latitude) * Math.cos(longitude - myLocation.lng);
+                                const theta = Math.atan2(y, x);
+                                newHeading = (theta * 180 / Math.PI + 360) % 360;
+                            }
+
+                            setMyLocation({ lat: latitude, lng: longitude });
+                            if (newHeading !== null && !isNaN(newHeading)) setHeading(newHeading);
+
+                            // Emit to Backend
+                            socket.emit('technician_location_update', {
+                                jobId: activeJob.id,
+                                lat: latitude,
+                                lng: longitude
+                            });
+
+                            // OSRM Routing
+                            const destLat = activeJob.lat;
+                            const destLng = activeJob.lng;
+                            if (destLat && destLng) {
+                                fetch(`https://router.project-osrm.org/route/v1/driving/${longitude},${latitude};${destLng},${destLat}?overview=full&geometries=geojson&steps=true`)
+                                    .then(res => res.json())
+                                    .then(data => {
+                                        if (data.routes && data.routes.length > 0) {
+                                            const route = data.routes[0];
+                                            setRoutePath(route.geometry.coordinates.map(c => [c[1], c[0]]));
+                                            setRouteSteps(route.legs[0].steps);
+                                        }
+                                    }).catch(e => console.error(e));
+                            }
+                        }
+                    });
+
+                } catch (e) {
+                    console.error("GPS Init Error:", e);
+                    alert("Error GPS: " + e.message);
+                }
+            };
+            startTracking();
         }
 
         return () => {
-            if (watchId) navigator.geolocation.clearWatch(watchId);
+            if (watchId) Geolocation.clearWatch({ id: watchId });
         };
     }, [bookings, user]);
 
@@ -341,39 +352,24 @@ const Dashboard = () => {
 
     return (
         <div style={{ padding: '24px', paddingBottom: '80px', minHeight: '100vh', backgroundColor: 'var(--color-bg-light)' }}>
-            <div className="container">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <button onClick={() => navigate('/home')} style={{ background: 'none', padding: 0, border: 'none', cursor: 'pointer' }}>
-                            <ArrowLeft size={24} color="var(--color-deep-navy)" />
-                        </button>
-                        <h2 style={{ marginLeft: '16px' }}>Hola, {user?.name || 'Técnico'}</h2>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                        <button
-                            onClick={() => navigate('/profile')}
-                            style={{
-                                width: '40px',
-                                height: '40px',
-                                borderRadius: '50%',
-                                backgroundColor: 'white',
-                                border: 'none',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            <User size={20} color="var(--color-action-blue)" weight="bold" />
-                        </button>
-                        <button onClick={handleLogout} style={{ color: 'red', fontWeight: 'bold', background: 'none', border: 'none', cursor: 'pointer' }}>Salir</button>
-                    </div>
+            <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                    <h2 style={{ fontSize: '1.2rem', margin: 0 }}>Panel de Técnico</h2>
+                    <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem', margin: 0 }}>
+                        {user ? `Hola, ${user.name}` : 'Bienvenido'}
+                    </p>
                 </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <NotificationBell />
+                    <button onClick={handleLogout} style={{ padding: '8px 12px', background: '#ffebee', color: '#d32f2f', borderRadius: '8px', border: 'none', fontWeight: 'bold' }}>
+                        Salir
+                    </button>
+                </div>
+            </div>
 
-                {/* My Jobs Section */}
-                {myJobs.length > 0 && (
+            {/* My Jobs Section */}
+            {
+                myJobs.length > 0 && (
                     <div style={{ marginBottom: '32px' }}>
                         <h3 style={{ marginBottom: '16px', color: 'var(--color-action-blue)' }}>Mis Trabajos Activos</h3>
                         {myJobs.map(job => (
@@ -713,11 +709,13 @@ const Dashboard = () => {
                             </div>
                         ))}
                     </div>
-                )}
+                )
+            }
 
-                <h3 style={{ marginBottom: '16px' }}>Ofertas Disponibles en Tiempo Real</h3>
+            <h3 style={{ marginBottom: '16px' }}>Ofertas Disponibles en Tiempo Real</h3>
 
-                {availableJobs.length === 0 ? (
+            {
+                availableJobs.length === 0 ? (
                     <p style={{ textAlign: 'center', color: '#999' }}>No hay trabajos pendientes...</p>
                 ) : (
                     availableJobs.map((job) => (
@@ -797,8 +795,8 @@ const Dashboard = () => {
                             </div>
                         </div>
                     ))
-                )}
-            </div>
+                )
+            }
         </div>
     );
 };

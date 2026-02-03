@@ -134,6 +134,20 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
+// Update Device Token (FCM)
+app.put('/api/users/device-token', authenticateToken, async (req, res) => {
+    try {
+        const { token } = req.body;
+        if (!token) return res.status(400).json({ error: "Missing token" });
+
+        await pool.query("UPDATE users SET device_token = $1 WHERE id = $2", [token, req.user.id]);
+        res.json({ message: "Token updated" });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send("Server Error");
+    }
+});
+
 // Get Profile
 app.get('/api/users/profile', authenticateToken, async (req, res) => {
     try {
@@ -316,6 +330,15 @@ app.put('/api/bookings/:id/status', authenticateToken, async (req, res) => {
 
             // Notify via socket
             io.emit('notification', { user_email: booking.user_email, message });
+
+            // Notify via Push (FCM V1)
+            const userRes = await pool.query("SELECT device_token FROM users WHERE email = $1", [booking.user_email]);
+            if (userRes.rows.length > 0 && userRes.rows[0].device_token) {
+                const { sendPushNotification } = require('./fcmv1');
+                // Don't await strictly to avoid blocking response? Actually await is fine for V1.
+                await sendPushNotification(userRes.rows[0].device_token, "Actualización de Servicio", message);
+            }
+
         } catch (notifErr) {
             console.error("Notification Error:", notifErr);
         }

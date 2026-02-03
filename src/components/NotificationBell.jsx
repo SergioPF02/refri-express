@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell } from 'phosphor-react';
+import { Bell, Trash } from 'phosphor-react';
 import { useAuth } from '../context/AuthContext';
+import { motion, AnimatePresence } from 'framer-motion';
 import io from 'socket.io-client';
 import { API_URL } from '../config';
 import { getSocket } from '../socket';
@@ -113,49 +114,102 @@ const NotificationBell = () => {
             </button>
 
             {showDropdown && (
-                <div style={{
-                    position: 'absolute',
-                    top: '120%',
-                    right: 0,
-                    width: '300px',
-                    backgroundColor: 'white',
-                    borderRadius: '12px',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                    zIndex: 1000,
-                    overflow: 'hidden',
-                    maxHeight: '400px',
-                    overflowY: 'auto'
-                }}>
-                    <div style={{ padding: '12px 16px', borderBottom: '1px solid #eee', fontWeight: 'bold', color: '#333' }}>
-                        Notificaciones
-                    </div>
-                    {notifications.length === 0 ? (
-                        <div style={{ padding: '24px', textAlign: 'center', color: '#999' }}>
-                            Sin notificaciones
+                <>
+                    {/* Backdrop for mobile to close on click outside (optional but good) */}
+                    <div
+                        style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1999 }}
+                        onClick={() => setShowDropdown(false)}
+                    />
+                    <div style={{
+                        position: 'fixed', /* Use fixed to center on screen */
+                        top: '80px',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        width: '90%',
+                        maxWidth: '400px',
+                        backgroundColor: 'white',
+                        borderRadius: '16px',
+                        boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+                        zIndex: 2000,
+                        overflow: 'hidden',
+                        maxHeight: '60vh',
+                        display: 'flex',
+                        flexDirection: 'column'
+                    }}>
+                        <div style={{
+                            padding: '16px',
+                            borderBottom: '1px solid #eee',
+                            fontWeight: 'bold',
+                            color: 'var(--color-deep-navy)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            backgroundColor: '#fafafa'
+                        }}>
+                            <span>Notificaciones</span>
+                            <button onClick={() => setShowDropdown(false)} style={{ background: 'none', border: 'none', color: '#999', fontSize: '1.2rem' }}>&times;</button>
                         </div>
-                    ) : (
-                        notifications.map(notif => (
-                            <div
-                                key={notif.id}
-                                onClick={() => handleMarkAsRead(notif.id, notif.is_read)}
-                                style={{
-                                    padding: '12px 16px',
-                                    borderBottom: '1px solid #f5f5f5',
-                                    backgroundColor: notif.is_read ? 'white' : '#e3f2fd',
-                                    cursor: 'pointer',
-                                    transition: 'background-color 0.2s'
-                                }}
-                                onMouseEnter={(e) => e.target.style.backgroundColor = notif.is_read ? '#f9f9f9' : '#bbdefb'}
-                                onMouseLeave={(e) => e.target.style.backgroundColor = notif.is_read ? 'white' : '#e3f2fd'}
-                            >
-                                <p style={{ margin: 0, fontSize: '0.9rem', color: '#333' }}>{notif.message}</p>
-                                <span style={{ fontSize: '0.75rem', color: '#888', display: 'block', marginTop: '4px' }}>
-                                    {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                            </div>
-                        ))
-                    )}
-                </div>
+                        <div style={{ overflowY: 'auto' }}>
+                            {notifications.length === 0 ? (
+                                <div style={{ padding: '32px', textAlign: 'center', color: '#999' }}>
+                                    No tienes notificaciones
+                                </div>
+                            ) : (
+                                <AnimatePresence>
+                                    {notifications.map(notif => (
+                                        <motion.div
+                                            key={notif.id}
+                                            layout
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 'auto' }}
+                                            exit={{ opacity: 0, height: 0, x: -100 }}
+                                            drag="x"
+                                            dragConstraints={{ left: 0, right: 0 }}
+                                            dragElastic={0.5}
+                                            onDragEnd={(e, { offset, velocity }) => {
+                                                if (offset.x < -50) { // Swipe Left to delete
+                                                    // Optimistic delete
+                                                    setNotifications(prev => prev.filter(n => n.id !== notif.id));
+                                                    handleMarkAsRead(notif.id, true); // Mark read effectively deletes from view if we filtered? 
+                                                    // Ideally we want a DELETE endpoint or just hide it.
+                                                    // User said "eliminen al deslizar".
+                                                    // Assuming backend delete or just mark read?
+                                                    // Let's implement DELETE call if logical, or just hide.
+                                                    // For now just hide from list (local) and mark read. 
+                                                    // Actually let's assume "mark read" is enough to "dismiss" visually if we filter?
+                                                    // But the list shows READ messages too (white background).
+                                                    // So we must remove it from the list.
+                                                }
+                                            }}
+                                            style={{
+                                                padding: '16px',
+                                                borderBottom: '1px solid #f0f0f0',
+                                                backgroundColor: notif.is_read ? 'white' : '#E1F5FE',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: '4px',
+                                                position: 'relative',
+                                                touchAction: 'pan-y' // Important for scroll
+                                            }}
+                                            onClick={() => { handleMarkAsRead(notif.id, notif.is_read); }}
+                                        >
+                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                <p style={{ margin: 0, fontSize: '0.95rem', color: '#333', lineHeight: '1.4', wordBreak: 'break-word', flex: 1 }}>
+                                                    {notif.message}
+                                                </p>
+                                            </div>
+                                            <span style={{ fontSize: '0.75rem', color: '#888', alignSelf: 'flex-end' }}>
+                                                {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                            {/* Swipe Hint Background could be added here via another absolute div behind */}
+                                        </motion.div>
+                                    ))}
+                                </AnimatePresence>
+                            )}
+                        </div>
+                    </div>
+                </>
             )}
         </div>
     );
