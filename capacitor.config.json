@@ -1,0 +1,8 @@
+{
+  "appId": "com.refriexpress.app",
+  "appName": "RefriExpress",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}

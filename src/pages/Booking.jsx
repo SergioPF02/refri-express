@@ -10,6 +10,7 @@ import TonnageSelector from '../components/TonnageSelector';
 import MapSelector from '../components/MapSelector';
 import serviceCleaning from '../assets/service-cleaning.png';
 import serviceGas from '../assets/service-gas.png';
+import { API_URL } from '../config';
 
 const Booking = () => {
     const navigate = useNavigate();
@@ -77,7 +78,7 @@ const Booking = () => {
     // Fetch taken slots when date changes
     useEffect(() => {
         if (formData.date) {
-            fetch(`http://localhost:5000/api/bookings/availability?date=${formData.date}`)
+            fetch(`${API_URL}/api/bookings/availability?date=${formData.date}`)
                 .then(res => res.json())
                 .then(setTakenSlots)
                 .catch(console.error);
@@ -183,7 +184,7 @@ const Booking = () => {
                     quantity: cart.reduce((acc, item) => acc + item.quantity, 0) // Total quantity
                 };
 
-                const response = await fetch('http://localhost:5000/api/bookings', {
+                const response = await fetch(`${API_URL}/api/bookings`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(bookingData)

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/Button';
 import Input from '../components/Input';
+import { API_URL } from '../config';
 
 const Profile = () => {
     const navigate = useNavigate();
@@ -22,7 +23,7 @@ const Profile = () => {
         if (!user) return;
         const fetchProfile = async () => {
             try {
-                const response = await fetch('http://localhost:5000/api/users/profile', {
+                const response = await fetch(`${API_URL}/api/users/profile`, {
                     headers: { 'Authorization': `Bearer ${user.token}` }
                 });
                 if (response.ok) {
@@ -71,8 +72,7 @@ const Profile = () => {
                 data.append('photo', selectedFile);
                 // We don't send photo_url if we are sending a new photo, backend will generate new one
             }
-
-            const response = await fetch('http://localhost:5000/api/users/profile', {
+            const response = await fetch(`${API_URL}/api/users/profile`, {
                 method: 'PUT',
                 headers: {
                     // 'Content-Type': 'multipart/form-data', // DO NOT set content-type manually with FormData, browser does it with boundary

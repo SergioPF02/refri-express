@@ -55,9 +55,13 @@ const FitBounds = ({ markers }) => {
 
 
 
-const socket = io('http://localhost:5000'); // Connect to backend
+import { API_URL } from '../config';
+import { getSocket } from '../socket';
+
+// const socket = io(API_URL);
 
 const ClientOrders = () => {
+    const socket = getSocket();
     const navigate = useNavigate();
     const { user } = useAuth();
     const [orders, setOrders] = useState([]);
@@ -91,7 +95,7 @@ const ClientOrders = () => {
 
         const fetchOrders = async () => {
             try {
-                const response = await fetch('http://localhost:5000/api/bookings', {
+                const response = await fetch(`${API_URL}/api/bookings`, {
                     headers: {
                         'Authorization': `Bearer ${user.token}`
                     }
@@ -133,7 +137,7 @@ const ClientOrders = () => {
         if (!selectedOrder || rating === 0) return alert("Por favor selecciona una calificación");
 
         try {
-            const response = await fetch(`http://localhost:5000/api/bookings/${selectedOrder.id}/review`, {
+            const response = await fetch(`${API_URL}/api/bookings/${selectedOrder.id}/review`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',

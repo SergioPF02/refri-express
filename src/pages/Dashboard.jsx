@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Clock, MapPin, CurrencyDollar, CheckCircle, Phone, NavigationArrow, Play, User, WhatsappLogo, Envelope } from 'phosphor-react';
 import { useAuth } from '../context/AuthContext';
-import io from 'socket.io-client';
+import { getSocket } from '../socket';
+import { API_URL } from '../config';
 
-const socket = io('http://localhost:5000'); // Connect to backend
+// const socket = io(API_URL); // Removed top-level side effect
 
 const Dashboard = () => {
+    const socket = getSocket();
     const navigate = useNavigate();
     const { user, logout } = useAuth();
     const [bookings, setBookings] = useState([]);
@@ -14,7 +16,7 @@ const Dashboard = () => {
 
     useEffect(() => {
         // Initial fetch
-        fetch('http://localhost:5000/api/bookings')
+        fetch(`${API_URL}/api/bookings`)
             .then(res => res.json())
             .then(data => setBookings(data))
             .catch(err => console.error(err));
@@ -79,7 +81,7 @@ const Dashboard = () => {
     const handleAcceptJob = async (jobId) => {
         if (!user) return;
         try {
-            const response = await fetch(`http://localhost:5000/api/bookings/${jobId}/accept`, {
+            const response = await fetch(`${API_URL}/api/bookings/${jobId}/accept`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -105,7 +107,7 @@ const Dashboard = () => {
     const handleStatusUpdate = async (jobId, newStatus) => {
         if (!user) return;
         try {
-            const response = await fetch(`http://localhost:5000/api/bookings/${jobId}/status`, {
+            const response = await fetch(`${API_URL}/api/bookings/${jobId}/status`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -136,7 +138,7 @@ const Dashboard = () => {
         }
 
         try {
-            const response = await fetch(`http://localhost:5000/api/bookings/${editingJob.id}/details`, {
+            const response = await fetch(`${API_URL}/api/bookings/${editingJob.id}/details`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -289,7 +291,7 @@ const Dashboard = () => {
                                                 onClick={async () => {
                                                     if (window.confirm("⚠️ ADVERTENCIA: ¿Estás seguro de liberar este pedido?\n\nAl hacerlo antes de iniciar el trabajo, se restarán puntos de tu reputación y el trabajo volverá a la lista de disponibles.")) {
                                                         try {
-                                                            const response = await fetch(`http://localhost:5000/api/bookings/${job.id}/release`, {
+                                                            const response = await fetch(`${API_URL}/api/bookings/${job.id}/release`, {
                                                                 method: 'PUT',
                                                                 headers: { 'Authorization': `Bearer ${user.token}` }
                                                             });

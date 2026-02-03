@@ -101,7 +101,7 @@ app.post('/api/auth/register', async (req, res) => {
         res.json({ ...user, token });
     } catch (err) {
         console.error(err.message);
-        res.status(500).send("Server Error");
+        res.status(500).json({ error: err.message });
     }
 });
 

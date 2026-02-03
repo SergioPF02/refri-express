@@ -2,40 +2,51 @@ const { Client } = require('pg');
 const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
-const DB_CONFIG = {
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
-};
+const isProduction = !!process.env.DATABASE_URL;
+
+const DB_CONFIG = isProduction
+    ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }
+    : {
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
+        host: process.env.DB_HOST,
+        port: process.env.DB_PORT,
+    };
 
 const DB_NAME = 'refri_express';
 
 async function setup() {
     console.log('🔄 Iniciando configuración de base de datos...');
 
-    // 1. Crear base de datos si no existe
-    const client = new Client({ ...DB_CONFIG, database: 'postgres' });
-    try {
-        await client.connect();
-        const res = await client.query(`SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'`);
-        if (res.rowCount === 0) {
-            console.log(`✨ Creando base de datos '${DB_NAME}'...`);
-            await client.query(`CREATE DATABASE "${DB_NAME}"`);
-        } else {
-            console.log(`ℹ️ La base de datos '${DB_NAME}' ya existe.`);
+    // 1. Crear base de datos (Solo en local)
+    if (!isProduction) {
+        const client = new Client({ ...DB_CONFIG, database: 'postgres' });
+        try {
+            await client.connect();
+            const res = await client.query(`SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'`);
+            if (res.rowCount === 0) {
+                console.log(`✨ Creando base de datos '${DB_NAME}'...`);
+                await client.query(`CREATE DATABASE "${DB_NAME}"`);
+            } else {
+                console.log(`ℹ️ La base de datos '${DB_NAME}' ya existe.`);
+            }
+        } catch (err) {
+            console.error('❌ Error verificando/creando base de datos:', err.message);
+            process.exit(1);
+        } finally {
+            await client.end();
         }
-    } catch (err) {
-        console.error('❌ Error verificando/creando base de datos:', err.message);
-        process.exit(1);
-    } finally {
-        await client.end();
+    } else {
+        console.log('☁️ En Producción/Render: Saltando creación de DB (se asume existente).');
     }
 
     // 2. Ejecutar esquema base
-    const dbClient = new Client({ ...DB_CONFIG, database: DB_NAME });
+    // En producción usamos la config directa (que incluye la DB en la URL), en local especificamos la DB
+    const connectionConfig = isProduction ? DB_CONFIG : { ...DB_CONFIG, database: DB_NAME };
+    const dbClient = new Client(connectionConfig);
+
     try {
         await dbClient.connect();
 

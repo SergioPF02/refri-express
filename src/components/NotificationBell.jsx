@@ -2,10 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Bell } from 'phosphor-react';
 import { useAuth } from '../context/AuthContext';
 import io from 'socket.io-client';
+import { API_URL } from '../config';
+import { getSocket } from '../socket';
 
-const socket = io('http://localhost:5000');
+// const socket = io(API_URL);
 
 const NotificationBell = () => {
+    const socket = getSocket();
     const { user } = useAuth();
     const [notifications, setNotifications] = useState([]);
     const [showDropdown, setShowDropdown] = useState(false);
@@ -16,7 +19,7 @@ const NotificationBell = () => {
         if (!user) return;
 
         // Fetch initial notifications
-        fetch('http://localhost:5000/api/notifications', {
+        fetch(`${API_URL}/api/notifications`, {
             headers: { 'Authorization': `Bearer ${user.token}` }
         })
             .then(res => res.json())
@@ -30,7 +33,7 @@ const NotificationBell = () => {
         socket.on('notification', (payload) => {
             if (payload.user_email === user.email) {
                 // Re-fetch or manually add. Let's simple re-fetch for sync
-                fetch('http://localhost:5000/api/notifications', {
+                fetch(`${API_URL}/api/notifications`, {
                     headers: { 'Authorization': `Bearer ${user.token}` }
                 })
                     .then(res => res.json())
@@ -63,7 +66,7 @@ const NotificationBell = () => {
     const handleMarkAsRead = async (id, isRead) => {
         if (isRead) return;
         try {
-            await fetch(`http://localhost:5000/api/notifications/${id}/read`, {
+            await fetch(`${API_URL}/api/notifications/${id}/read`, {
                 method: 'PUT',
                 headers: { 'Authorization': `Bearer ${user.token}` }
             });

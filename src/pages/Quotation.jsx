@@ -7,6 +7,7 @@ import TonnageSelector from '../components/TonnageSelector';
 import MapSelector from '../components/MapSelector';
 import { useAuth } from '../context/AuthContext';
 import { MapPin } from 'phosphor-react';
+import { API_URL } from '../config';
 
 const Quotation = () => {
     const navigate = useNavigate();
@@ -50,7 +51,7 @@ const Quotation = () => {
         };
 
         try {
-            const response = await fetch('http://localhost:5000/api/bookings', {
+            const response = await fetch(`${API_URL}/api/bookings`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(quotationData)

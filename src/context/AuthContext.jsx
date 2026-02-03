@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { API_URL } from '../config';
 
 const AuthContext = createContext();
 
@@ -24,7 +25,7 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (userData) => {
         try {
-            const response = await fetch('http://localhost:5000/api/auth/login', {
+            const response = await fetch(`${API_URL}/api/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(userData)
@@ -53,12 +54,19 @@ export const AuthProvider = ({ children }) => {
 
     const register = async (userData) => {
         try {
-            const response = await fetch('http://localhost:5000/api/auth/register', {
+            const response = await fetch(`${API_URL}/api/auth/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(userData)
             });
-            const data = await response.json();
+
+            const text = await response.text();
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch {
+                throw new Error(text || "Error del servidor (no JSON)");
+            }
 
             if (response.ok) {
                 // Auto login after register
@@ -71,13 +79,20 @@ export const AuthProvider = ({ children }) => {
             }
         } catch (err) {
             console.error(err);
+            alert('Error: ' + (err.message || 'Error de conexión'));
             return false;
         }
     };
 
     return (
         <AuthContext.Provider value={{ user, login, logout, register, loading }}>
-            {!loading && children}
+            {loading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: 'white', color: 'black' }}>
+                    <h2>Cargando aplicación...</h2>
+                </div>
+            ) : (
+                children
+            )}
         </AuthContext.Provider>
     );
 };
