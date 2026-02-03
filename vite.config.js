@@ -5,4 +5,12 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: './',
+  server: {
+    watch: {
+      ignored: ['**/android/**']
+    }
+  },
+  optimizeDeps: {
+    exclude: ['@capacitor/android', 'android'] // 'android' is folder but safe to ignore
+  }
 })

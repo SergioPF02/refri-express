@@ -136,14 +136,24 @@ const Booking = () => {
 
     const getTotalPrice = () => cart.reduce((acc, item) => acc + item.price, 0);
 
+    const isRepairIncluded = cart.some(item => item.service === 'Reparación');
+
     const nextStep = () => {
         setDirection(1);
-        setStep(step + 1);
+        if (step === 2 && !isRepairIncluded) {
+            setStep(4);
+        } else {
+            setStep(step + 1);
+        }
     };
 
     const prevStep = () => {
         setDirection(-1);
-        setStep(step - 1);
+        if (step === 4 && !isRepairIncluded) {
+            setStep(2);
+        } else {
+            setStep(step - 1);
+        }
     };
 
     const handleNext = async () => {
@@ -151,21 +161,26 @@ const Booking = () => {
             nextStep();
         } else {
             try {
+                // ... (rest of logic same)
                 // Build Description from Cart + Manual Input
                 const cartDescription = cart.map(item => {
                     const tons = item.service !== 'Reparación' ? `(${item.tonnage} Ton)` : '';
                     return `${item.quantity}x ${item.service} ${tons}`;
                 }).join(', ');
 
-                const finalDescription = `Problema: ${formData.problem_description}. Items: ${cartDescription}`;
+                // Only include problem description if it exists (Repair)
+                const finalDescription = isRepairIncluded
+                    ? `Problema: ${formData.problem_description}. Items: ${cartDescription}`
+                    : `Items: ${cartDescription}`;
 
                 const totalPrice = getTotalPrice();
                 const primaryService = cart.length === 1 ? cart[0].service : 'Múltiple';
 
-                // Determine max tonnage: Use manual if set (user explicit), else cart max
-                const maxTonnage = formData.manual_tonnage || Math.max(...cart.map(i => i.tonnage || 0)) || 1;
+                // Determine max tonnage: Use manual if set (Repair), else cart max
+                const maxTonnage = isRepairIncluded
+                    ? formData.manual_tonnage
+                    : (Math.max(...cart.map(i => i.tonnage || 0)) || 1);
 
-                // Format address
                 const parts = formData.address.split(',');
                 const street = parts[0];
                 const rest = parts.slice(1).join(',');
@@ -176,12 +191,12 @@ const Booking = () => {
                     formattedAddress,
                     address: formattedAddress,
                     service: primaryService,
-                    description: finalDescription, // Join manual and cart
+                    description: finalDescription,
                     price: totalPrice,
                     tonnage: maxTonnage,
                     user_email: user?.email || 'guest',
                     contact_method: formData.contact_method,
-                    quantity: cart.reduce((acc, item) => acc + item.quantity, 0) // Total quantity
+                    quantity: cart.reduce((acc, item) => acc + item.quantity, 0)
                 };
 
                 const response = await fetch(`${API_URL}/api/bookings`, {
@@ -215,18 +230,22 @@ const Booking = () => {
 
             {/* Progress Bar */}
             <div style={{ display: 'flex', gap: '8px', marginBottom: '32px' }}>
-                {[1, 2, 3, 4].map((s) => (
-                    <div
-                        key={s}
-                        style={{
-                            flex: 1,
-                            height: '4px',
-                            borderRadius: '2px',
-                            backgroundColor: s <= step ? 'var(--color-action-blue)' : '#CFD8DC',
-                            transition: 'background-color 0.3s ease'
-                        }}
-                    />
-                ))}
+                {[1, 2, 3, 4].map((s) => {
+                    // Hide step 3 in progress bar if skipping
+                    if (s === 3 && !isRepairIncluded) return null;
+                    return (
+                        <div
+                            key={s}
+                            style={{
+                                flex: 1,
+                                height: '4px',
+                                borderRadius: '2px',
+                                backgroundColor: s <= step ? 'var(--color-action-blue)' : '#CFD8DC',
+                                transition: 'background-color 0.3s ease'
+                            }}
+                        />
+                    )
+                })}
             </div>
 
             <AnimatePresence initial={false} custom={direction} mode="wait">
@@ -240,7 +259,6 @@ const Booking = () => {
                         exit="exit"
                         transition={{ x: { type: "spring", stiffness: 300, damping: 30 }, opacity: { duration: 0.2 } }}
                     >
-                        {/* Service Selection Grid (Keep existing code structure by assuming it matches original file context if I could just perform insert, but replace_file needs mapped content. I will copy existing block) */}
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
                             <ServiceCard
                                 image={serviceCleaning}
@@ -264,7 +282,6 @@ const Booking = () => {
                             />
                         </div>
 
-                        {/* Cart Summary */}
                         {cart.length > 0 && (
                             <div className="glass-card" style={{ padding: '20px' }}>
                                 <h3 style={{ marginBottom: '16px', fontSize: '1.1rem' }}>Tu Pedido</h3>
@@ -291,7 +308,6 @@ const Booking = () => {
                             </div>
                         )}
 
-                        {/* Service Config Modal */}
                         {isModalOpen && (
                             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
                                 <div className="glass-card" style={{ width: '90%', maxWidth: '350px', padding: '24px', position: 'relative', backgroundColor: 'white' }}>
@@ -407,7 +423,7 @@ const Booking = () => {
                     </motion.div>
                 )}
 
-                {step === 3 && (
+                {step === 3 && isRepairIncluded && (
                     <motion.div
                         key="step3"
                         custom={direction}
@@ -447,38 +463,6 @@ const Booking = () => {
                                     onChange={(t) => setFormData({ ...formData, manual_tonnage: t })}
                                 />
                             </div>
-
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '12px', fontWeight: '600' }}>Medio de contacto preferido:</label>
-                                <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
-                                    {['WhatsApp', 'Correo Electrónico'].map(method => (
-                                        <button
-                                            key={method}
-                                            onClick={() => setFormData({ ...formData, contact_method: method })}
-                                            style={{
-                                                flex: 1,
-                                                padding: '12px',
-                                                borderRadius: '8px',
-                                                border: formData.contact_method === method ? '2px solid var(--color-action-blue)' : '1px solid #ddd',
-                                                backgroundColor: formData.contact_method === method ? '#E3F2FD' : 'white',
-                                                color: formData.contact_method === method ? 'var(--color-action-blue)' : '#666',
-                                                fontWeight: formData.contact_method === method ? 'bold' : 'normal',
-                                                cursor: 'pointer'
-                                            }}
-                                        >
-                                            {method}
-                                        </button>
-                                    ))}
-                                </div>
-                                {formData.contact_method === 'Correo Electrónico' && (
-                                    <Input
-                                        placeholder="Tu correo electrónico"
-                                        type="email"
-                                        value={formData.contact_email}
-                                        onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
-                                    />
-                                )}
-                            </div>
                         </div>
                     </motion.div>
                 )}
@@ -495,7 +479,7 @@ const Booking = () => {
                     >
                         <div className="glass-card" style={{ padding: '20px' }}>
                             <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <MapPin size={20} /> Ubicación
+                                <MapPin size={20} /> Ubicación y Contacto
                             </h3>
                             <div style={{ position: 'relative' }}>
                                 <Input
@@ -567,7 +551,7 @@ const Booking = () => {
                             />
 
                             <h3 style={{ marginBottom: '16px', marginTop: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <User size={20} /> Contacto
+                                <User size={20} /> Datos de Contacto
                             </h3>
                             <Input
                                 placeholder="Tu Nombre"
@@ -580,6 +564,38 @@ const Booking = () => {
                                 value={formData.phone}
                                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                             />
+
+                            <div style={{ marginTop: '16px' }}>
+                                <label style={{ display: 'block', marginBottom: '12px', fontWeight: '600' }}>Medio de contacto preferido:</label>
+                                <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+                                    {['WhatsApp', 'Correo Electrónico'].map(method => (
+                                        <button
+                                            key={method}
+                                            onClick={() => setFormData({ ...formData, contact_method: method })}
+                                            style={{
+                                                flex: 1,
+                                                padding: '12px',
+                                                borderRadius: '8px',
+                                                border: formData.contact_method === method ? '2px solid var(--color-action-blue)' : '1px solid #ddd',
+                                                backgroundColor: formData.contact_method === method ? '#E3F2FD' : 'white',
+                                                color: formData.contact_method === method ? 'var(--color-action-blue)' : '#666',
+                                                fontWeight: formData.contact_method === method ? 'bold' : 'normal',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            {method}
+                                        </button>
+                                    ))}
+                                </div>
+                                {formData.contact_method === 'Correo Electrónico' && (
+                                    <Input
+                                        placeholder="Tu correo electrónico"
+                                        type="email"
+                                        value={formData.contact_email}
+                                        onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
+                                    />
+                                )}
+                            </div>
                         </div>
                     </motion.div>
                 )}
@@ -591,8 +607,8 @@ const Booking = () => {
                     disabled={
                         (step === 1 && cart.length === 0) ||
                         (step === 2 && (!formData.date || !formData.time)) ||
-                        (step === 3 && (!formData.problem_description || (formData.contact_method === 'Correo Electrónico' && !formData.contact_email))) ||
-                        (step === 4 && (!formData.address || !formData.addressDetails || !formData.name || !formData.phone))
+                        (step === 3 && isRepairIncluded && (!formData.problem_description)) ||
+                        (step === 4 && (!formData.address || !formData.addressDetails || !formData.name || !formData.phone || (formData.contact_method === 'Correo Electrónico' && !formData.contact_email)))
                     }
                 >
                     {step === 4 ? 'Confirmar Pedido' : 'Continuar'}
@@ -601,5 +617,4 @@ const Booking = () => {
         </div >
     );
 };
-
 export default Booking;
