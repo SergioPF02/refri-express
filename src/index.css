@@ -18,6 +18,19 @@
   --radius-sm: 8px;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  overflow-x: hidden;
+  /* Prevent horizontal scroll */
+  width: 100%;
+}
+
 body {
   margin: 0;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -26,7 +39,9 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-h1, h2, h3 {
+h1,
+h2,
+h3 {
   color: var(--color-deep-navy);
   margin: 0;
 }
@@ -48,7 +63,8 @@ button {
 }
 
 .container {
-  max-width: 480px; /* Mobile focused width */
+  max-width: 480px;
+  /* Mobile focused width */
   margin: 0 auto;
   padding: 20px;
   min-height: 100vh;
@@ -56,15 +72,26 @@ button {
 }
 
 @keyframes pulse {
-  0% { transform: scale(0.95); opacity: 0.7; }
-  50% { transform: scale(1.1); opacity: 1; }
-  100% { transform: scale(0.95); opacity: 0.7; }
+  0% {
+    transform: scale(0.95);
+    opacity: 0.7;
+  }
+
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(0.95);
+    opacity: 0.7;
+  }
 }
 
 .pulse-dot {
-    width: 10px;
-    height: 10px;
-    background-color: #0288D1;
-    border-radius: 50%;
-    animation: pulse 1.5s infinite ease-in-out;
+  width: 10px;
+  height: 10px;
+  background-color: #0288D1;
+  border-radius: 50%;
+  animation: pulse 1.5s infinite ease-in-out;
 }

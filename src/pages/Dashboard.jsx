@@ -10,6 +10,7 @@ import { API_URL } from '../config';
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import { LocalNotifications } from '@capacitor/local-notifications';
 
 // Helper for Map & Heading Control
 const NavigationController = ({ center, heading }) => {
@@ -114,10 +115,39 @@ const Dashboard = () => {
             .then(data => setBookings(data))
             .catch(err => console.error(err));
 
+        // Request Notification Permissions on Mount
+        const requestPermissions = async () => {
+            try {
+                const result = await LocalNotifications.requestPermissions();
+                if (result.display === 'granted') {
+                    console.log("Notification permission granted");
+                }
+            } catch (e) {
+                console.error("Error requesting notifications", e);
+            }
+        };
+        requestPermissions();
+
         // Socket listeners
-        socket.on('new_job', (job) => {
+        socket.on('new_job', async (job) => {
             setBookings(prev => [job, ...prev]);
             try { new Audio('/notification.mp3').play().catch(e => { }); } catch (e) { }
+
+            // Trigger System Notification
+            try {
+                await LocalNotifications.schedule({
+                    notifications: [{
+                        title: '¡Nueva Solicitud!',
+                        body: `Servicio: ${job.service} - ${job.address}`,
+                        id: new Date().getTime(),
+                        schedule: { at: new Date(Date.now() + 100) }, // Immediate
+                        sound: null,
+                        attachments: null,
+                        actionTypeId: "",
+                        extra: null
+                    }]
+                });
+            } catch (e) { console.error("Notification failed", e); }
         });
 
         socket.on('job_taken', (updatedJob) => {

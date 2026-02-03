@@ -74,7 +74,10 @@ export const AuthProvider = ({ children }) => {
                 localStorage.setItem('refri_user', JSON.stringify(data));
                 return true;
             } else {
-                alert("Error: " + (data.error || "Failed to register"));
+                let errorMsg = data.error || "Error al registrarse";
+                if (errorMsg.includes("already exists")) errorMsg = "El correo ya está registrado.";
+                if (errorMsg.includes("Password")) errorMsg = "La contraseña es muy débil.";
+                alert(errorMsg);
                 return false;
             }
         } catch (err) {
