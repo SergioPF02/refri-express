@@ -25,3 +25,5 @@ dist-ssr
 
 # Security
 .env
+.env.production
+server/service-account.json
