@@ -16,6 +16,8 @@ const Login = () => {
         if (user && !loading) {
             if (user.role === 'worker') {
                 navigate('/dashboard');
+            } else if (user.role === 'admin') {
+                navigate('/admin');
             } else {
                 navigate('/home');
             }
@@ -31,6 +33,8 @@ const Login = () => {
 
             if (storedUser?.role === 'worker') {
                 navigate('/dashboard');
+            } else if (storedUser?.role === 'admin') {
+                navigate('/admin');
             } else {
                 navigate('/home');
             }

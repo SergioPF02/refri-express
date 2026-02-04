@@ -11,8 +11,31 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+
 const app = express();
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_key_123'; // Logic for secret
+const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_key_123';
+
+// Security Headers
+app.use(helmet());
+
+// Rate Limiting (Global for now, can be specific)
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+// Apply to all requests
+app.use(limiter);
+
+// Specific stricter limit for Auth (Login/Register)
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10, // Max 10 login attempts per 15 min
+    message: "Demasiados intentos de inicio de sesión, por favor intente de nuevo en 15 minutos."
+});
 
 app.use(cors());
 app.use(express.json());
@@ -158,8 +181,10 @@ io.on('connection', (socket) => {
 
 // --- AUTH ROUTES ---
 
+// --- AUTH ROUTES ---
+
 // Register
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', authLimiter, async (req, res) => {
     try {
         const { name, email, password, role, phone } = req.body;
 
@@ -200,7 +225,8 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // Login
-app.post('/api/auth/login', async (req, res) => {
+// Login
+app.post('/api/auth/login', authLimiter, async (req, res) => {
     try {
         const { email, password } = req.body;
         const user = await pool.query("SELECT * FROM users WHERE email = $1", [email]);

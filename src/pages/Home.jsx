@@ -21,7 +21,10 @@ const Home = () => {
             }}>
                 <div>
                     <h2 style={{ fontSize: '1rem', color: 'var(--color-text-secondary)', fontWeight: 'normal', margin: 0 }}>Hola,</h2>
-                    <h1 style={{ fontSize: '1.5rem', color: 'var(--color-text-main)', margin: 0 }}>{user ? user.name : 'Usuario'}</h1>
+                    <h1 style={{ fontSize: '1.5rem', margin: 0, color: 'var(--color-text-main)' }}>
+                        ¡Hola, {user ? user.name : 'Visitante'}!
+                        {user && <span style={{ fontSize: '0.8rem', color: '#888', marginLeft: '10px' }}>({user.role})</span>}
+                    </h1>
                 </div>
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                     <NotificationBell />
