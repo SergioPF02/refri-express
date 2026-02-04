@@ -10,6 +10,8 @@ import Input from '../components/Input';
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 // Custom Technician Icon (Truck Emoji as SVG)
 const truckIconUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`
@@ -274,75 +276,76 @@ const ClientOrders = () => {
                                                 <h4 style={{ margin: 0, fontSize: '0.9rem', color: '#333' }}>📝 Recibo Digital:</h4>
                                                 <button
                                                     onClick={() => {
-                                                        import('jspdf').then(jsPDF => {
-                                                            import('jspdf-autotable').then(() => {
-                                                                const doc = new jsPDF.default();
+                                                        try {
+                                                            const doc = new jsPDF();
 
-                                                                // Header
-                                                                doc.setFontSize(20);
-                                                                doc.setTextColor(33, 150, 243); // Blue
-                                                                doc.text("RefriExpress", 105, 20, null, null, "center");
+                                                            // Header
+                                                            doc.setFontSize(20);
+                                                            doc.setTextColor(33, 150, 243); // Blue
+                                                            doc.text("RefriExpress", 105, 20, null, null, "center");
 
-                                                                doc.setFontSize(12);
-                                                                doc.setTextColor(100);
-                                                                doc.text("Recibo de Servicio", 105, 30, null, null, "center");
+                                                            doc.setFontSize(12);
+                                                            doc.setTextColor(100);
+                                                            doc.text("Recibo de Servicio", 105, 30, null, null, "center");
 
-                                                                // Info
-                                                                doc.setFontSize(10);
-                                                                doc.setTextColor(0);
-                                                                doc.text(`Fecha: ${new Date(order.date).toLocaleDateString()}`, 14, 45);
-                                                                doc.text(`Cliente: ${user.name}`, 14, 50);
-                                                                doc.text(`Dirección: ${order.address}`, 14, 55);
-                                                                doc.text(`Servicio: ${order.service}`, 14, 60);
+                                                            // Info
+                                                            doc.setFontSize(10);
+                                                            doc.setTextColor(0);
+                                                            doc.text(`Fecha: ${new Date(order.date).toLocaleDateString()}`, 14, 45);
+                                                            doc.text(`Cliente: ${user.name}`, 14, 50);
+                                                            doc.text(`Dirección: ${order.address}`, 14, 55);
+                                                            doc.text(`Servicio: ${order.service}`, 14, 60);
 
-                                                                // Table
-                                                                const tableColumn = ["Descripción", "Precio"];
-                                                                const tableRows = [];
+                                                            // Table
+                                                            const tableColumn = ["Descripción", "Precio"];
+                                                            const tableRows = [];
 
-                                                                order.items.forEach(item => {
-                                                                    const itemData = [
-                                                                        item.name,
-                                                                        `$${item.price.toFixed(2)}`
-                                                                    ];
-                                                                    tableRows.push(itemData);
-                                                                });
-
-                                                                // Add Total Row
-                                                                tableRows.push(["", ""]);
-                                                                tableRows.push(["TOTAL PAGADO", `$${order.price}`]);
-
-                                                                doc.autoTable({
-                                                                    startY: 70,
-                                                                    head: [tableColumn],
-                                                                    body: tableRows,
-                                                                    theme: 'striped',
-                                                                    headStyles: { fillColor: [33, 150, 243] },
-                                                                    footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
-                                                                });
-
-                                                                // Warranty Disclaimer
-                                                                const finalY = doc.lastAutoTable.finalY + 15;
-                                                                doc.setDrawColor(255, 152, 0); // Orange border
-                                                                doc.setFillColor(255, 243, 224); // Light orange bg
-                                                                doc.rect(14, finalY, 182, 25, 'FD');
-
-                                                                doc.setFontSize(10);
-                                                                doc.setTextColor(230, 81, 0); // Dark orange text
-                                                                doc.text("GARANTÍA PROTEGIDA", 105, finalY + 8, null, null, "center");
-
-                                                                doc.setFontSize(9);
-                                                                doc.setTextColor(0);
-                                                                doc.text(`Este recibo oficial por $${order.price} es su único comprobante válido para reclamos de garantía.`, 105, finalY + 16, null, null, "center");
-                                                                doc.text("Si el monto cobrado fue mayor al de este recibo, repórtelo inmediatamente.", 105, finalY + 21, null, null, "center");
-
-                                                                // Footer
-                                                                doc.setFontSize(8);
-                                                                doc.setTextColor(150);
-                                                                doc.text("Gracias por su preferencia - RefriExpress", 105, 280, null, null, "center");
-
-                                                                doc.save(`Recibo_RefriExpress_${order.id}.pdf`);
+                                                            order.items.forEach(item => {
+                                                                const itemData = [
+                                                                    item.name,
+                                                                    `$${(item.price || 0).toFixed(2)}`
+                                                                ];
+                                                                tableRows.push(itemData);
                                                             });
-                                                        });
+
+                                                            // Add Total Row
+                                                            tableRows.push(["", ""]);
+                                                            tableRows.push(["TOTAL PAGADO", `$${order.price}`]);
+
+                                                            doc.autoTable({
+                                                                startY: 70,
+                                                                head: [tableColumn],
+                                                                body: tableRows,
+                                                                theme: 'striped',
+                                                                headStyles: { fillColor: [33, 150, 243] },
+                                                                footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
+                                                            });
+
+                                                            // Warranty Disclaimer
+                                                            const finalY = doc.lastAutoTable.finalY + 15;
+                                                            doc.setDrawColor(255, 152, 0); // Orange border
+                                                            doc.setFillColor(255, 243, 224); // Light orange bg
+                                                            doc.rect(14, finalY, 182, 25, 'FD');
+
+                                                            doc.setFontSize(10);
+                                                            doc.setTextColor(230, 81, 0); // Dark orange text
+                                                            doc.text("GARANTÍA PROTEGIDA", 105, finalY + 8, null, null, "center");
+
+                                                            doc.setFontSize(9);
+                                                            doc.setTextColor(0);
+                                                            doc.text(`Este recibo oficial por $${order.price} es su único comprobante válido para reclamos de garantía.`, 105, finalY + 16, null, null, "center");
+                                                            doc.text("Si el monto cobrado fue mayor al de este recibo, repórtelo inmediatamente.", 105, finalY + 21, null, null, "center");
+
+                                                            // Footer
+                                                            doc.setFontSize(8);
+                                                            doc.setTextColor(150);
+                                                            doc.text("Gracias por su preferencia - RefriExpress", 105, 280, null, null, "center");
+
+                                                            doc.save(`Recibo_RefriExpress_${order.id}.pdf`);
+                                                        } catch (err) {
+                                                            console.error("PDF Error:", err);
+                                                            alert("Error al generar PDF. Ver consola.");
+                                                        }
                                                     }}
                                                     style={{
                                                         fontSize: '0.8rem',
