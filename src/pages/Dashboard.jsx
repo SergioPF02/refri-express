@@ -176,33 +176,43 @@ const Dashboard = () => {
 
         let watchId = null;
 
-        if (activeJob) {
-            console.log("Starting tracking for job:", activeJob.id);
-            const startTracking = async () => {
-                try {
-                    // Check Permission First
-                    const status = await Geolocation.checkPermissions();
-                    if (status.location !== 'granted') {
-                        const request = await Geolocation.requestPermissions();
-                        if (request.location !== 'granted') {
-                            alert("Se requiere permiso de GPS para la navegación.");
-                            return;
-                        }
+        const startTracking = async () => {
+            try {
+                // Check Permission First
+                const status = await Geolocation.checkPermissions();
+                if (status.location !== 'granted') {
+                    const request = await Geolocation.requestPermissions();
+                    if (request.location !== 'granted') {
+                        console.warn("Se requiere permiso de GPS para ver distancias.");
+                        return;
                     }
+                }
 
-                    // Watch Position
-                    watchId = await Geolocation.watchPosition({
-                        enableHighAccuracy: true,
-                        timeout: 10000,
-                        maximumAge: 5000
-                    }, (position, err) => {
-                        if (err) {
-                            console.error("Tracking error:", err);
-                            return;
-                        }
-                        if (position) {
-                            const { latitude, longitude, heading: gpsHeading } = position.coords;
+                // If active job: High accuracy, frequent updates
+                // If NOT active job: Balanced (save battery), for "distance to job" only
+                const options = activeJob ? {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 5000
+                } : {
+                    enableHighAccuracy: false,
+                    timeout: 20000,
+                    maximumAge: 30000
+                };
 
+                watchId = await Geolocation.watchPosition(options, (position, err) => {
+                    if (err) {
+                        console.error("Tracking error:", err);
+                        return;
+                    }
+                    if (position) {
+                        const { latitude, longitude, heading: gpsHeading } = position.coords;
+
+                        // Local state for UI
+                        setMyLocation({ lat: latitude, lng: longitude });
+
+                        // If Active Job: Do Routing and Emit
+                        if (activeJob) {
                             // Calculate Heading logic
                             let newHeading = gpsHeading;
                             if ((newHeading === null || isNaN(newHeading)) && myLocation) {
@@ -213,8 +223,6 @@ const Dashboard = () => {
                                 const theta = Math.atan2(y, x);
                                 newHeading = (theta * 180 / Math.PI + 360) % 360;
                             }
-
-                            setMyLocation({ lat: latitude, lng: longitude });
                             if (newHeading !== null && !isNaN(newHeading)) setHeading(newHeading);
 
                             // Emit to Backend
@@ -239,20 +247,32 @@ const Dashboard = () => {
                                     }).catch(e => console.error(e));
                             }
                         }
-                    });
+                    }
+                });
 
-                } catch (e) {
-                    console.error("GPS Init Error:", e);
-                    alert("Error GPS: " + e.message);
-                }
-            };
-            startTracking();
-        }
+            } catch (e) {
+                console.error("GPS Init Error:", e);
+                // alert("Error GPS: " + e.message); // Don't spam alert if just checking available jobs
+            }
+        };
+        startTracking();
 
         return () => {
             if (watchId) Geolocation.clearWatch({ id: watchId });
         };
-    }, [bookings, user]);
+    }, [bookings, user, myLocation]); // Added myLocation to dep for haversine header calc
+
+    const getDistance = (lat1, lon1, lat2, lon2) => {
+        if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+        const R = 6371; // km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return (R * c).toFixed(1); // Return string "5.2"
+    };
 
     const handleLogout = () => {
         logout();
@@ -735,6 +755,23 @@ const Dashboard = () => {
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                                     <MapPin size={18} color="#EB5757" />
                                     <span style={{ fontSize: '0.9rem' }}>{job.address}</span>
+                                    {myLocation && job.lat && job.lng && (
+                                        <span style={{
+                                            marginLeft: 'auto',
+                                            backgroundColor: '#E1F5FE',
+                                            color: '#0288D1',
+                                            padding: '2px 8px',
+                                            borderRadius: '12px',
+                                            fontSize: '0.8rem',
+                                            fontWeight: 'bold',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '4px'
+                                        }}>
+                                            <NavigationArrow size={14} weight="fill" />
+                                            {getDistance(myLocation.lat, myLocation.lng, job.lat, job.lng)} km
+                                        </span>
+                                    )}
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <Clock size={18} color="#F2994A" />

@@ -179,13 +179,21 @@ const NotificationBell = () => {
 
                                                     // Call backend to delete permenantly
                                                     try {
-                                                        await fetch(`${API_URL}/api/notifications/${notif.id}`, {
+                                                        const res = await fetch(`${API_URL}/api/notifications/${notif.id}`, {
                                                             method: 'DELETE',
                                                             headers: { 'Authorization': `Bearer ${user.token}` }
                                                         });
+
+                                                        if (!res.ok) {
+                                                            const errText = await res.text();
+                                                            console.error("Failed to delete:", errText);
+                                                            // Revert optimistic update if needed or just alert
+                                                            alert("Error al eliminar notificación: " + (res.status === 404 ? "El servidor no reconoce la ruta (Reinicia el backend)" : errText));
+                                                            // Optional: revert state logic here
+                                                        }
                                                     } catch (err) {
                                                         console.error("Error deleting notification:", err);
-                                                        // Revert if failed? For UX usually we just log error unless critical.
+                                                        alert("Error de conexión al eliminar.");
                                                     }
                                                 }
                                             }}
