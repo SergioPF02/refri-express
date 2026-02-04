@@ -233,6 +233,21 @@ app.post('/api/bookings', async (req, res) => {
         // Broadcast new job to all connected clients (workers)
         io.emit('new_job', newBooking.rows[0]);
 
+        // Detect Workers and Notify (Push)
+        try {
+            const workers = await pool.query("SELECT device_token FROM users WHERE role = 'worker' AND device_token IS NOT NULL");
+            if (workers.rows.length > 0) {
+                const { sendPushNotification } = require('./fcmv1');
+                const message = `Nuevo servicio disponible: ${service}`;
+                workers.rows.forEach(worker => {
+                    sendPushNotification(worker.device_token, "¡Nuevo Trabajo!", message)
+                        .catch(err => console.error("Error pushing to worker:", err));
+                });
+            }
+        } catch (pushErr) {
+            console.error("Worker Push Error:", pushErr);
+        }
+
         res.json(newBooking.rows[0]);
     } catch (err) {
         console.error(err.message);

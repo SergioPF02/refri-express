@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Lock, SignIn } from 'phosphor-react';
 import { useAuth } from '../context/AuthContext';
@@ -8,9 +8,19 @@ import Input from '../components/Input';
 
 const Login = () => {
     const navigate = useNavigate();
-    const { login } = useAuth();
+    const { login, user, loading } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+
+    useEffect(() => {
+        if (user && !loading) {
+            if (user.role === 'worker') {
+                navigate('/dashboard');
+            } else {
+                navigate('/home');
+            }
+        }
+    }, [user, loading, navigate]);
 
     const handleLogin = async () => {
         const success = await login({ email, password });
