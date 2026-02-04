@@ -344,7 +344,7 @@ const ClientOrders = () => {
                                                             doc.save(`Recibo_RefriExpress_${order.id}.pdf`);
                                                         } catch (err) {
                                                             console.error("PDF Error:", err);
-                                                            alert("Error al generar PDF. Ver consola.");
+                                                            alert(`Error al generar PDF: ${err.message}`);
                                                         }
                                                     }}
                                                     style={{
