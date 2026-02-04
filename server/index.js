@@ -319,6 +319,12 @@ app.put('/api/bookings/:id/details', authenticateToken, async (req, res) => {
         if (price !== undefined) { fields.push(`price = $${idx++}`); values.push(price); }
         if (description !== undefined) { fields.push(`description = $${idx++}`); values.push(description); }
         if (status !== undefined) { fields.push(`status = $${idx++}`); values.push(status); }
+        // Handle items (Quotation System)
+        if (req.body.items !== undefined) {
+            fields.push(`items = $${idx++}`);
+            values.push(JSON.stringify(req.body.items));
+        }
+        if (status !== undefined) { fields.push(`status = $${idx++}`); values.push(status); }
 
         if (fields.length === 0) return res.json({ message: "No changes" });
 

@@ -4,6 +4,7 @@ import { ArrowLeft, Clock, MapPin, CurrencyDollar, CheckCircle, Phone, Navigatio
 import { useAuth } from '../context/AuthContext';
 import { getSocket } from '../socket';
 import { API_URL } from '../config';
+import { SERVICE_CATALOG } from '../services_catalog';
 
 // const socket = io(API_URL); // Removed top-level side effect
 
@@ -336,6 +337,7 @@ const Dashboard = () => {
         } else if (editingJob.mode === 'quote') {
             payload.price = editingJob.price;
             payload.description = editingJob.description;
+            payload.items = editingJob.items;
         }
 
         try {
@@ -611,120 +613,173 @@ const Dashboard = () => {
                                         )}
                                     </div>
 
-                                    {/* Action Buttons Logic */}
-                                    {job.service === 'Reparación' ? (
-                                        <>
-                                            {/* Edit Mode UI */}
-                                            {editingJob?.id === job.id ? (
-                                                <div style={{ backgroundColor: '#f5f5f5', padding: '12px', borderRadius: '8px', marginBottom: '12px' }}>
-                                                    {editingJob.mode === 'schedule' && (
-                                                        <>
-                                                            <strong style={{ display: 'block', marginBottom: '8px' }}>Agendar Visita:</strong>
-                                                            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                                                                <input
-                                                                    type="date"
-                                                                    value={editingJob.date || ''}
-                                                                    onChange={(e) => setEditingJob(prev => ({ ...prev, date: e.target.value }))}
-                                                                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd', flex: 1 }}
-                                                                />
-                                                                <input
-                                                                    type="time"
-                                                                    value={editingJob.time || ''}
-                                                                    onChange={(e) => setEditingJob(prev => ({ ...prev, time: e.target.value }))}
-                                                                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd', flex: 1 }}
-                                                                />
-                                                            </div>
-                                                        </>
-                                                    )}
-                                                    {editingJob.mode === 'quote' && (
-                                                        <>
-                                                            <strong style={{ display: 'block', marginBottom: '8px' }}>Cotizar y Diagnosticar:</strong>
+                                    {/* Action Buttons Logic - Unified for ALL Services to allow Upselling */}
+                                    <>
+                                        {/* Edit Mode UI */}
+                                        {editingJob?.id === job.id ? (
+                                            <div style={{ backgroundColor: '#f5f5f5', padding: '12px', borderRadius: '8px', marginBottom: '12px' }}>
+                                                {/* SAME EDIT UI AS BEFORE */}
+                                                {editingJob.mode === 'schedule' && (
+                                                    <>
+                                                        <strong style={{ display: 'block', marginBottom: '8px' }}>Agendar Visita:</strong>
+                                                        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                                                             <input
-                                                                type="number"
-                                                                placeholder="Precio ($)"
-                                                                value={editingJob.price || ''}
-                                                                onChange={(e) => setEditingJob(prev => ({ ...prev, price: e.target.value }))}
-                                                                style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd', width: '100%', marginBottom: '8px' }}
+                                                                type="date"
+                                                                value={editingJob.date || ''}
+                                                                onChange={(e) => setEditingJob(prev => ({ ...prev, date: e.target.value }))}
+                                                                style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd', flex: 1 }}
                                                             />
-                                                            <textarea
-                                                                placeholder="Diagnóstico técnico / Descripción del trabajo"
-                                                                value={editingJob.description || ''}
-                                                                onChange={(e) => setEditingJob(prev => ({ ...prev, description: e.target.value }))}
-                                                                style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd', width: '100%', minHeight: '60px' }}
+                                                            <input
+                                                                type="time"
+                                                                value={editingJob.time || ''}
+                                                                onChange={(e) => setEditingJob(prev => ({ ...prev, time: e.target.value }))}
+                                                                style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd', flex: 1 }}
                                                             />
-                                                        </>
-                                                    )}
-                                                    <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                                                        <button onClick={handleUpdateDetails} style={{ flex: 1, backgroundColor: 'green', color: 'white', border: 'none', padding: '8px', borderRadius: '4px', cursor: 'pointer' }}>Guardar</button>
-                                                        <button onClick={() => setEditingJob(null)} style={{ flex: 1, backgroundColor: '#ddd', color: 'black', border: 'none', padding: '8px', borderRadius: '4px', cursor: 'pointer' }}>Cancelar</button>
-                                                    </div>
+                                                        </div>
+                                                    </>
+                                                )}
+                                                {editingJob.mode === 'quote' && (
+                                                    <>
+                                                        <strong style={{ display: 'block', marginBottom: '8px' }}>Modificar Presupuesto / Agregar Extras:</strong>
+
+                                                        {/* Service Selector */}
+                                                        <div style={{ marginBottom: '12px' }}>
+                                                            <select
+                                                                onChange={(e) => {
+                                                                    const serviceId = e.target.value;
+                                                                    if (!serviceId) return;
+                                                                    const service = SERVICE_CATALOG.find(s => s.id === serviceId);
+
+                                                                    // Add Item
+                                                                    setEditingJob(prev => {
+                                                                        const newItems = [...(prev.items || []), { ...service, price: service.minPrice }];
+                                                                        const newTotal = newItems.reduce((sum, item) => sum + item.price, 0);
+                                                                        return { ...prev, items: newItems, price: newTotal };
+                                                                    });
+                                                                    e.target.value = ''; // Reset select
+                                                                }}
+                                                                style={{ width: '100%', padding: '8px', borderRadius: '4px', marginBottom: '8px' }}
+                                                            >
+                                                                <option value="">+ Agregar Servicio/Refacción</option>
+                                                                {SERVICE_CATALOG.map(service => (
+                                                                    <option key={service.id} value={service.id}>
+                                                                        {service.name} (${service.minPrice} - ${service.maxPrice})
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+
+                                                            {/* Selected Items List */}
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                                {editingJob.items?.map((item, index) => (
+                                                                    <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'white', padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}>
+                                                                        <div style={{ flex: 1 }}>
+                                                                            <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{item.name}</div>
+                                                                            <div style={{ fontSize: '0.8rem', color: '#666' }}>
+                                                                                Precio:
+                                                                                <input
+                                                                                    type="number"
+                                                                                    min={item.minPrice}
+                                                                                    max={item.maxPrice}
+                                                                                    value={item.price}
+                                                                                    onChange={(e) => {
+                                                                                        const val = parseFloat(e.target.value);
+                                                                                        setEditingJob(prev => {
+                                                                                            const updatedItems = [...prev.items];
+                                                                                            updatedItems[index].price = val;
+                                                                                            const newTotal = updatedItems.reduce((sum, it) => sum + (it.price || 0), 0);
+                                                                                            return { ...prev, items: updatedItems, price: newTotal };
+                                                                                        });
+                                                                                    }}
+                                                                                    style={{ width: '80px', marginLeft: '4px', padding: '2px' }}
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setEditingJob(prev => {
+                                                                                    const updatedItems = prev.items.filter((_, i) => i !== index);
+                                                                                    const newTotal = updatedItems.reduce((sum, it) => sum + (it.price || 0), 0);
+                                                                                    return { ...prev, items: updatedItems, price: newTotal };
+                                                                                });
+                                                                            }}
+                                                                            style={{ color: 'red', background: 'none', border: 'none', cursor: 'pointer' }}
+                                                                        >
+                                                                            <Trash size={18} />
+                                                                        </button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+
+                                                            <div style={{ marginTop: '12px', textAlign: 'right', fontWeight: 'bold', fontSize: '1.2rem', color: '#2E7D32' }}>
+                                                                Total: ${editingJob.price || 0}
+                                                            </div>
+                                                        </div>
+
+                                                        <textarea
+                                                            placeholder="Notas adicionales (opcional)"
+                                                            value={editingJob.description || ''}
+                                                            onChange={(e) => setEditingJob(prev => ({ ...prev, description: e.target.value }))}
+                                                            style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd', width: '100%', minHeight: '60px' }}
+                                                        />
+                                                    </>
+                                                )}
+                                                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                                                    <button onClick={handleUpdateDetails} style={{ flex: 1, backgroundColor: 'green', color: 'white', border: 'none', padding: '8px', borderRadius: '4px', cursor: 'pointer' }}>Guardar Cambios</button>
+                                                    <button onClick={() => setEditingJob(null)} style={{ flex: 1, backgroundColor: '#ddd', color: 'black', border: 'none', padding: '8px', borderRadius: '4px', cursor: 'pointer' }}>Cancelar</button>
                                                 </div>
-                                            ) : (
-                                                /* Action Buttons for Repair */
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                                    {/* 1. Quote (First step: Define Price) */}
-                                                    {job.status === 'Accepted' && job.price == 0 && (
-                                                        <button
-                                                            onClick={() => setEditingJob({ id: job.id, mode: 'quote', price: '', description: job.description || '' })}
-                                                            style={{ padding: '12px', backgroundColor: '#9C27B0', color: 'white', border: 'none', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
-                                                        >
-                                                            <CurrencyDollar size={20} /> Crear Presupuesto
-                                                        </button>
-                                                    )}
+                                            </div>
+                                        ) : (
+                                            /* Action Buttons - UNIFIED */
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
 
-                                                    {/* 2. Schedule Visit (After Price is set) */}
-                                                    {job.status === 'Accepted' && job.price > 0 && !job.date && (
-                                                        <button
-                                                            onClick={() => setEditingJob({ id: job.id, mode: 'schedule', date: '', time: '' })}
-                                                            style={{ padding: '12px', backgroundColor: '#F2994A', color: 'white', border: 'none', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
-                                                        >
-                                                            <Clock size={20} /> Agendar Visita
-                                                        </button>
-                                                    )}
+                                                {/* 1. Modificar Cotización (Always available if Accepted/InProgress) */}
+                                                {(job.status === 'Accepted' || job.status === 'In Progress') && (
+                                                    <button
+                                                        onClick={() => setEditingJob({
+                                                            id: job.id,
+                                                            mode: 'quote',
+                                                            price: job.price,
+                                                            items: job.items || [], // Load existing items if any
+                                                            description: job.description || ''
+                                                        })}
+                                                        style={{ padding: '12px', backgroundColor: '#9C27B0', color: 'white', border: 'none', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                                                    >
+                                                        <CurrencyDollar size={20} /> {job.items && job.items.length > 0 ? 'Modificar Cotización' : 'Agregar Extras / Cotizar'}
+                                                    </button>
+                                                )}
 
-                                                    {/* 3. Start Work (After Date is set) */}
-                                                    {job.status === 'Accepted' && job.price > 0 && job.date && (
-                                                        <button
-                                                            onClick={() => handleStatusUpdate(job.id, 'In Progress')}
-                                                            style={{ padding: '12px', backgroundColor: 'var(--color-action-blue)', color: 'white', border: 'none', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
-                                                        >
-                                                            <Play size={20} /> Iniciar Reparación
-                                                        </button>
-                                                    )}
+                                                {/* 2. Schedule Visit (If no date yet) */}
+                                                {job.status === 'Accepted' && parseInt(job.price) > 0 && !job.date && (
+                                                    <button
+                                                        onClick={() => setEditingJob({ id: job.id, mode: 'schedule', date: '', time: '' })}
+                                                        style={{ padding: '12px', backgroundColor: '#F2994A', color: 'white', border: 'none', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                                                    >
+                                                        <Clock size={20} /> Agendar Visita
+                                                    </button>
+                                                )}
 
-                                                    {/* 4. Finish (If In Progress) */}
-                                                    {job.status === 'In Progress' && (
-                                                        <button
-                                                            onClick={() => handleStatusUpdate(job.id, 'Completed')}
-                                                            style={{ padding: '12px', backgroundColor: '#2E7D32', color: 'white', border: 'none', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
-                                                        >
-                                                            <CheckCircle size={20} /> Finalizar Reparación
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </>
-                                    ) : (
-                                        /* Standard Flow for Lavado/Gas */
-                                        <div>
-                                            {job.status === 'Accepted' && (
-                                                <button
-                                                    onClick={() => handleStatusUpdate(job.id, 'In Progress')}
-                                                    style={{ width: '100%', padding: '12px', backgroundColor: 'var(--color-action-blue)', color: 'white', border: 'none', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginBottom: '8px' }}
-                                                >
-                                                    <Play size={20} /> Iniciar Trabajo
-                                                </button>
-                                            )}
-                                            {job.status === 'In Progress' && (
-                                                <button
-                                                    onClick={() => handleStatusUpdate(job.id, 'Completed')}
-                                                    style={{ width: '100%', padding: '12px', backgroundColor: '#2E7D32', color: 'white', border: 'none', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
-                                                >
-                                                    <CheckCircle size={20} /> Finalizar Trabajo
-                                                </button>
-                                            )}
-                                        </div>
-                                    )}
+                                                {/* 3. Start Work (If Price Set) */}
+                                                {job.status === 'Accepted' && parseInt(job.price) > 0 && (
+                                                    <button
+                                                        onClick={() => handleStatusUpdate(job.id, 'In Progress')}
+                                                        style={{ padding: '12px', backgroundColor: 'var(--color-action-blue)', color: 'white', border: 'none', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                                                    >
+                                                        <Play size={20} /> Iniciar Trabajo
+                                                    </button>
+                                                )}
+
+                                                {/* 4. Finish (If In Progress) */}
+                                                {job.status === 'In Progress' && (
+                                                    <button
+                                                        onClick={() => handleStatusUpdate(job.id, 'Completed')}
+                                                        style={{ padding: '12px', backgroundColor: '#2E7D32', color: 'white', border: 'none', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                                                    >
+                                                        <CheckCircle size={20} /> Finalizar Trabajo
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </>
                                 </div>
                             </div>
                         ))}

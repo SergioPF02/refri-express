@@ -268,9 +268,31 @@ const ClientOrders = () => {
                                     <p style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                                         <MapPin size={18} /> {order.address}
                                     </p>
-                                    <p style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: 'var(--color-text-main)', marginTop: '8px' }}>
-                                        <CurrencyDollar size={18} color="var(--color-action-blue)" /> ${order.price}
-                                    </p>
+                                    {order.items && order.items.length > 0 ? (
+                                        <div style={{ marginTop: '12px', padding: '12px', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #eee' }}>
+                                            <h4 style={{ margin: '0 0 8px 0', fontSize: '0.9rem', color: '#333' }}>📝 Recibo Digital:</h4>
+                                            <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.9rem', color: '#555' }}>
+                                                {order.items.map((item, idx) => (
+                                                    <li key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                                        <span>{item.name}</span>
+                                                        <span style={{ fontWeight: 'bold' }}>${item.price}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                            <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #ccc', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', color: '#333' }}>
+                                                <span>Total Pagado</span>
+                                                <span>${order.price}</span>
+                                            </div>
+                                            <div style={{ marginTop: '12px', backgroundColor: '#FFF3E0', color: '#E65100', padding: '8px', borderRadius: '4px', fontSize: '0.8rem', textAlign: 'center', border: '1px solid #FFE082' }}>
+                                                🛡️ <strong>Garantía Protegida:</strong><br />
+                                                Tu garantía solo cubre el monto exacto de este recibo digital (${order.price}).
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <p style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: 'var(--color-text-main)', marginTop: '8px' }}>
+                                            <CurrencyDollar size={18} color="var(--color-action-blue)" /> ${order.price}
+                                        </p>
+                                    )}
                                 </div>
 
                                 {order.technician_name && (

@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 // Using only standard icons for safety
-import { Users, Briefcase, ArrowLeft, ShieldCheck, User, Wrench, Trash, CurrencyDollar } from 'phosphor-react';
+import { Users, Briefcase, ArrowLeft, ShieldCheck, User, Wrench, Trash, CurrencyDollar, SignOut } from 'phosphor-react';
 import { API_URL } from '../config';
 
 const AdminDashboard = () => {
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const { user, logout } = useAuth();
     const [stats, setStats] = useState({ users: 0, active_jobs: 0, pending_jobs: 0, revenue: 0 });
     const [usersList, setUsersList] = useState([]);
     const [activeTab, setActiveTab] = useState('stats');
@@ -82,11 +82,37 @@ const AdminDashboard = () => {
     return (
         <div style={{ padding: '24px', minHeight: '100vh', backgroundColor: '#f4f6f8' }}>
             <div className="container">
-                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '32px' }}>
-                    <button onClick={() => navigate('/home')} style={{ background: 'none', padding: 0, border: 'none', cursor: 'pointer' }}>
-                        <ArrowLeft size={24} color="#333" />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '32px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <button onClick={() => navigate('/home')} style={{ background: 'none', padding: 0, border: 'none', cursor: 'pointer' }}>
+                            <ArrowLeft size={24} color="#333" />
+                        </button>
+                        <h2 style={{ marginLeft: '16px', color: '#1a1a1a', fontWeight: 'bold' }}>Panel de Administrador</h2>
+                    </div>
+
+                    <button
+                        onClick={() => {
+                            if (window.confirm("¿Cerrar sesión de administrador?")) {
+                                logout();
+                                navigate('/');
+                            }
+                        }}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            background: '#ffebee',
+                            color: '#e53935',
+                            border: 'none',
+                            padding: '8px 16px',
+                            borderRadius: '20px',
+                            cursor: 'pointer',
+                            fontWeight: 'bold'
+                        }}
+                    >
+                        <SignOut size={20} weight="bold" />
+                        Salir
                     </button>
-                    <h2 style={{ marginLeft: '16px', color: '#1a1a1a', fontWeight: 'bold' }}>Panel de Administrador</h2>
                 </div>
 
                 {loading ? (
