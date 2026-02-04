@@ -1,0 +1,11 @@
+=== DIAGNÓSTICO DE CREDENCIALES FIREBASE ===
+1. Fecha y Hora del Sistema: Tue Feb 03 2026 21:50:50 GMT-0700 (hora estándar del Pacífico de México)
+   (IMPORTANTE: Si esta fecha no es correcta, Firebase rechazará el token)
+2. Variable de Entorno FIREBASE_SERVICE_ACCOUNT: NO DETECTADA
+3. Archivo service-account.json: DETECTADO
+------------------------------------------------
+FUENTE DE CREDENCIALES USADA: Archivo service-account.json
+Project ID: refri-express
+Client Email: firebase-adminsdk-fbsvc@refri-express.iam.gserviceaccount.com
+Private Key ID: 97c1d...
+================================================

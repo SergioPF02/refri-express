@@ -9,23 +9,71 @@ const Register = () => {
     const navigate = useNavigate();
     const { register } = useAuth();
     const [role, setRole] = useState('client'); // 'client' or 'worker'
+    const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
         email: '',
-        password: ''
+        password: '',
+        phone: ''
     });
 
-    const handleSubmit = async () => {
-        if (!formData.name || !formData.email || !formData.password) return;
+    // Validation States
+    const [errors, setErrors] = useState({});
 
+    // Helpers
+    const validateEmail = (email) => {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    };
+
+    const getPasswordStrength = (pass) => {
+        if (!pass) return 0;
+        let score = 0;
+        if (pass.length > 5) score += 1;
+        if (pass.length >= 8) score += 1;
+        if (/[A-Z]/.test(pass)) score += 1; // has uppercase
+        if (/[0-9]/.test(pass)) score += 1; // has number
+        return score; // 0 to 4
+    };
+
+    const passwordStrength = getPasswordStrength(formData.password);
+
+    const getStrengthColor = () => {
+        if (passwordStrength < 2) return 'red';
+        if (passwordStrength < 3) return 'orange';
+        return '#00C853'; // Green
+    };
+
+    const getStrengthLabel = () => {
+        if (passwordStrength < 2) return 'Débil';
+        if (passwordStrength < 3) return 'Media';
+        return 'Fuerte';
+    };
+
+    const handleSubmit = async () => {
+        setErrors({});
+        const newErrors = {};
+
+        if (!formData.name) newErrors.name = "El nombre es obligatorio.";
+        if (!formData.phone) newErrors.phone = "El teléfono es obligatorio.";
+        if (!validateEmail(formData.email)) newErrors.email = "Correo inválido.";
+        if (formData.password.length < 8) newErrors.password = "La contraseña debe tener al menos 8 caracteres.";
+
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
+            return;
+        }
+
+        setLoading(true);
         const newUser = {
             name: formData.name,
             email: formData.email,
             password: formData.password,
-            role: role
+            role: role,
+            phone: formData.phone
         };
 
         const success = await register(newUser);
+        setLoading(false);
 
         if (success) {
             if (role === 'worker') {
@@ -85,29 +133,80 @@ const Register = () => {
                     </button>
                 </div>
 
-                <Input
-                    label="Nombre Completo"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder={role === 'client' ? "Tu Nombre" : "Nombre del Técnico"}
-                />
-                <Input
-                    label="Correo Electrónico"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="ejemplo@correo.com"
-                />
-                <Input
-                    label="Contraseña"
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    placeholder="••••••••"
-                />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div>
+                        <Input
+                            label="Nombre Completo"
+                            value={formData.name}
+                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            placeholder={role === 'client' ? "Tu Nombre" : "Nombre del Técnico"}
+                        />
+                        {errors.name && <span style={{ color: 'red', fontSize: '0.8rem', marginLeft: '4px' }}>{errors.name}</span>}
+                    </div>
+
+                    <div>
+                        <Input
+                            label="Teléfono"
+                            value={formData.phone}
+                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                            placeholder="Ej. 55 1234 5678"
+                            type="tel"
+                        />
+                        {errors.phone && <span style={{ color: 'red', fontSize: '0.8rem', marginLeft: '4px' }}>{errors.phone}</span>}
+                    </div>
+
+                    <div>
+                        <Input
+                            label="Correo Electrónico"
+                            value={formData.email}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            placeholder="ejemplo@correo.com"
+                            type="email"
+                        />
+                        {errors.email && <span style={{ color: 'red', fontSize: '0.8rem', marginLeft: '4px' }}>{errors.email}</span>}
+                    </div>
+
+                    <div>
+                        <Input
+                            label="Contraseña"
+                            type="password"
+                            value={formData.password}
+                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                            placeholder="Al menos 8 caracteres"
+                        />
+
+                        {/* Password Strength Meter */}
+                        {formData.password && (
+                            <div style={{ marginTop: '8px' }}>
+                                <div style={{
+                                    height: '4px',
+                                    width: '100%',
+                                    backgroundColor: '#e0e0e0',
+                                    borderRadius: '2px',
+                                    overflow: 'hidden'
+                                }}>
+                                    <div style={{
+                                        height: '100%',
+                                        width: `${(passwordStrength / 4) * 100}%`,
+                                        backgroundColor: getStrengthColor(),
+                                        transition: 'width 0.3s ease, background-color 0.3s ease'
+                                    }} />
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Seguridad:</span>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: getStrengthColor() }}>
+                                        {getStrengthLabel()}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                        {errors.password && <span style={{ color: 'red', fontSize: '0.8rem', marginLeft: '4px' }}>{errors.password}</span>}
+                    </div>
+                </div>
 
                 <div style={{ marginTop: '24px' }}>
-                    <Button onClick={handleSubmit}>
-                        Registrarme como {role === 'client' ? 'Cliente' : 'Técnico'}
+                    <Button onClick={handleSubmit} disabled={loading}>
+                        {loading ? 'Registrando...' : `Registrarme como ${role === 'client' ? 'Cliente' : 'Técnico'}`}
                     </Button>
                 </div>
             </div>

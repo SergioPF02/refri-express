@@ -1,0 +1,9 @@
+=== DIAGNÓSTICO DE CLAVE PRIVADA ===
+Length: 1704
+Starts with correct header: true
+Ends with correct footer: true
+Contains actual newlines (\n): true
+Contains escaped newlines (\\n): false
+Preview (First 50 chars): -----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w
+====================================

@@ -80,9 +80,22 @@ io.on('connection', (socket) => {
 // Register
 app.post('/api/auth/register', async (req, res) => {
     try {
-        const { name, email, password, role } = req.body;
-        if (!email || !password || !role) {
-            return res.status(400).json({ error: "Missing fields" });
+        const { name, email, password, role, phone } = req.body;
+
+        // Basic Validation
+        if (!name || !email || !password || !role) {
+            return res.status(400).json({ error: "Faltan campos obligatorios" });
+        }
+
+        // Email Validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({ error: "Formato de correo inválido" });
+        }
+
+        // Password Validation
+        if (password.length < 8) {
+            return res.status(400).json({ error: "La contraseña debe tener al menos 8 caracteres" });
         }
 
         // Hash password
@@ -90,8 +103,8 @@ app.post('/api/auth/register', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, salt);
 
         const newUser = await pool.query(
-            "INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role",
-            [name, email, hashedPassword, role]
+            "INSERT INTO users (name, email, password, role, phone) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, email, role, phone",
+            [name, email, hashedPassword, role, phone || null]
         );
 
         // Generate Token
@@ -151,7 +164,7 @@ app.put('/api/users/device-token', authenticateToken, async (req, res) => {
 // Get Profile
 app.get('/api/users/profile', authenticateToken, async (req, res) => {
     try {
-        const user = await pool.query("SELECT id, name, email, role, phone, bio, photo_url FROM users WHERE id = $1", [req.user.id]);
+        const user = await pool.query("SELECT id, name, email, role, phone, bio, photo_url, default_address, default_lat, default_lng FROM users WHERE id = $1", [req.user.id]);
         if (user.rows.length === 0) return res.status(404).json({ error: "User not found" });
         res.json(user.rows[0]);
     } catch (err) {
@@ -163,7 +176,7 @@ app.get('/api/users/profile', authenticateToken, async (req, res) => {
 // Update Profile
 app.put('/api/users/profile', authenticateToken, upload.single('photo'), async (req, res) => {
     try {
-        const { name, phone, bio } = req.body;
+        const { name, phone, bio, default_address, default_lat, default_lng } = req.body;
         let photo_url = req.body.photo_url || null; // Fix undefined
 
         if (req.file) {
@@ -172,8 +185,8 @@ app.put('/api/users/profile', authenticateToken, upload.single('photo'), async (
         }
 
         const result = await pool.query(
-            "UPDATE users SET name = $1, phone = $2, bio = $3, photo_url = $4 WHERE id = $5 RETURNING id, name, email, role, phone, bio, photo_url",
-            [name || '', phone || null, bio || '', photo_url, req.user.id]
+            "UPDATE users SET name = $1, phone = $2, bio = $3, photo_url = $4, default_address = $5, default_lat = $6, default_lng = $7 WHERE id = $8 RETURNING id, name, email, role, phone, bio, photo_url, default_address, default_lat, default_lng",
+            [name || '', phone || null, bio || '', photo_url, default_address || null, default_lat || null, default_lng || null, req.user.id]
         );
         res.json(result.rows[0]);
     } catch (err) {
@@ -181,6 +194,7 @@ app.put('/api/users/profile', authenticateToken, upload.single('photo'), async (
         res.status(500).send("Server Error");
     }
 });
+
 
 // Update Booking Details (Technician)
 app.put('/api/bookings/:id/details', authenticateToken, async (req, res) => {
@@ -526,6 +540,26 @@ app.put('/api/notifications/:id/read', authenticateToken, async (req, res) => {
             [id, req.user.id] // Ensure user owns notification
         );
         res.json({ message: "Marked as read" });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send("Server Error");
+    }
+});
+
+// Delete Notification
+app.delete('/api/notifications/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(
+            "DELETE FROM notifications WHERE id = $1 AND user_id = $2 RETURNING *",
+            [id, req.user.id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "Notification not found" });
+        }
+
+        res.json({ message: "Notification deleted" });
     } catch (err) {
         console.error(err.message);
         res.status(500).send("Server Error");

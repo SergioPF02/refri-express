@@ -1,23 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { User, Phone, Image, Article, ArrowLeft, FloppyDisk } from 'phosphor-react';
+import { User, Phone, Image, Article, ArrowLeft, FloppyDisk, MapPin } from 'phosphor-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/Button';
 import Input from '../components/Input';
+import MapSelector from '../components/MapSelector';
 import { API_URL } from '../config';
 
 const Profile = () => {
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const { user, updateUser } = useAuth();
     const [loading, setLoading] = useState(true);
     const [formData, setFormData] = useState({
         name: '',
         phone: '',
         bio: '',
-        photo_url: '' // Holds string URL from DB
+        photo_url: '',
+        default_address: '',
+        default_lat: 24.809065,
+        default_lng: -107.394017
     });
     const [selectedFile, setSelectedFile] = useState(null);
     const [previewUrl, setPreviewUrl] = useState(null);
+
+    // Address Autocomplete
+    const [suggestions, setSuggestions] = useState([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
 
     useEffect(() => {
         if (!user) return;
@@ -32,10 +40,13 @@ const Profile = () => {
                         name: data.name || '',
                         phone: data.phone || '',
                         bio: data.bio || '',
-                        photo_url: data.photo_url || ''
+                        photo_url: data.photo_url || '',
+                        default_address: data.default_address || '',
+                        default_lat: data.default_lat || 24.809065,
+                        default_lng: data.default_lng || -107.394017
                     });
-                    setPreviewUrl(null); // Clear preview when new data is fetched
-                    setSelectedFile(null); // Clear selected file when new data is fetched
+                    setPreviewUrl(null);
+                    setSelectedFile(null);
                 }
             } catch (err) {
                 console.error(err);
@@ -45,6 +56,25 @@ const Profile = () => {
         };
         fetchProfile();
     }, [user]);
+
+    // Address Autocomplete Logic (Debounced)
+    useEffect(() => {
+        if (formData.default_address && formData.default_address.length > 3) {
+            const timeoutId = setTimeout(() => {
+                fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${formData.default_address}&countrycodes=mx`)
+                    .then(res => res.json())
+                    .then(data => {
+                        setSuggestions(data);
+                        setShowSuggestions(true);
+                    })
+                    .catch(console.error);
+            }, 500);
+            return () => clearTimeout(timeoutId);
+        } else {
+            setSuggestions([]);
+            setShowSuggestions(false);
+        }
+    }, [formData.default_address]);
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -67,15 +97,18 @@ const Profile = () => {
             data.append('name', formData.name);
             data.append('phone', formData.phone);
             data.append('bio', formData.bio);
+            data.append('default_address', formData.default_address);
+            data.append('default_lat', formData.default_lat);
+            data.append('default_lng', formData.default_lng);
+
             if (formData.photo_url && !selectedFile) data.append('photo_url', formData.photo_url);
             if (selectedFile) {
                 data.append('photo', selectedFile);
-                // We don't send photo_url if we are sending a new photo, backend will generate new one
             }
+
             const response = await fetch(`${API_URL}/api/users/profile`, {
                 method: 'PUT',
                 headers: {
-                    // 'Content-Type': 'multipart/form-data', // DO NOT set content-type manually with FormData, browser does it with boundary
                     'Authorization': `Bearer ${user.token}`
                 },
                 body: data
@@ -86,12 +119,11 @@ const Profile = () => {
                 setFormData(prev => ({ ...prev, photo_url: updatedUser.photo_url }));
                 setPreviewUrl(null);
                 setSelectedFile(null);
-                // Update local storage too to keep session sync
-                const newSession = { ...user, ...updatedUser };
-                localStorage.setItem('refri_user', JSON.stringify(newSession));
+
+                // Update Globally
+                updateUser({ ...user, ...updatedUser });
 
                 alert('Perfil actualizado correctamente');
-                // Force reload or re-fetch (optional)
             } else {
                 const err = await response.text();
                 console.error("Save Error:", err);
@@ -179,6 +211,78 @@ const Profile = () => {
                     </div>
 
                     <div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Dirección Predeterminada</label>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <MapPin size={24} color="var(--color-primary)" />
+                                <div style={{ position: 'relative', width: '100%' }}>
+                                    <Input
+                                        name="default_address"
+                                        value={formData.default_address}
+                                        onChange={(e) => {
+                                            handleChange(e);
+                                            setShowSuggestions(true);
+                                        }}
+                                        placeholder="Busca tu dirección..."
+                                        onFocus={() => setShowSuggestions(true)}
+                                    />
+                                    {showSuggestions && suggestions.length > 0 && (
+                                        <ul style={{
+                                            position: 'absolute',
+                                            top: '100%',
+                                            left: 0,
+                                            right: 0,
+                                            backgroundColor: 'white',
+                                            border: '1px solid #ddd',
+                                            borderRadius: '0 0 8px 8px',
+                                            listStyle: 'none',
+                                            padding: 0,
+                                            margin: 0,
+                                            zIndex: 1000,
+                                            maxHeight: '200px',
+                                            overflowY: 'auto',
+                                            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                                        }}>
+                                            {suggestions.map((s) => (
+                                                <li
+                                                    key={s.place_id}
+                                                    onClick={() => {
+                                                        setFormData({
+                                                            ...formData,
+                                                            default_address: s.display_name,
+                                                            default_lat: parseFloat(s.lat),
+                                                            default_lng: parseFloat(s.lon)
+                                                        });
+                                                        setShowSuggestions(false);
+                                                    }}
+                                                    style={{
+                                                        padding: '12px',
+                                                        cursor: 'pointer',
+                                                        borderBottom: '1px solid #eee',
+                                                        fontSize: '0.9rem'
+                                                    }}
+                                                    onMouseEnter={(e) => e.target.style.backgroundColor = '#f5f5f5'}
+                                                    onMouseLeave={(e) => e.target.style.backgroundColor = 'white'}
+                                                >
+                                                    {s.display_name}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div style={{ height: '200px', width: '100%', borderRadius: '12px', overflow: 'hidden' }}>
+                                <MapSelector
+                                    lat={parseFloat(formData.default_lat)}
+                                    lng={parseFloat(formData.default_lng)}
+                                    onLocationChange={(pos) => setFormData({ ...formData, default_lat: pos.lat, default_lng: pos.lng })}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
                         <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Biografía / Notas</label>
                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                             <Article size={24} color="var(--color-primary)" style={{ marginTop: '8px' }} />
@@ -201,10 +305,7 @@ const Profile = () => {
                     </div>
 
                     <div style={{ marginTop: '16px' }}>
-                        <Button onClick={async () => {
-                            console.log("Button Clicked"); // Debug
-                            await handleSave();
-                        }}>
+                        <Button onClick={handleSave}>
                             <FloppyDisk size={24} style={{ marginRight: '8px' }} />
                             Guardar Cambios
                         </Button>

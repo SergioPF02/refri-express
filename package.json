@@ -17,6 +17,7 @@
     "@capacitor/local-notifications": "^8.0.0",
     "@capacitor/preferences": "^8.0.0",
     "@capacitor/push-notifications": "^8.0.0",
+    "@emotion/is-prop-valid": "^1.4.0",
     "framer-motion": "^12.31.0",
     "leaflet": "^1.9.4",
     "phosphor-react": "^1.4.1",

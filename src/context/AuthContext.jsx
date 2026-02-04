@@ -92,8 +92,7 @@ export const AuthProvider = ({ children }) => {
             const data = await response.json();
 
             if (response.ok) {
-                setUser(data);
-                await Preferences.set({ key: 'refri_user', value: JSON.stringify(data) });
+                updateUser(data);
                 return true;
             } else {
                 alert(data.error);
@@ -109,6 +108,11 @@ export const AuthProvider = ({ children }) => {
     const logout = async () => {
         setUser(null);
         await Preferences.remove({ key: 'refri_user' });
+    };
+
+    const updateUser = async (userData) => {
+        setUser(userData);
+        await Preferences.set({ key: 'refri_user', value: JSON.stringify(userData) });
     };
 
     const register = async (userData) => {
@@ -129,8 +133,7 @@ export const AuthProvider = ({ children }) => {
 
             if (response.ok) {
                 // Auto login after register
-                setUser(data);
-                await Preferences.set({ key: 'refri_user', value: JSON.stringify(data) });
+                updateUser(data);
                 return true;
             } else {
                 let errorMsg = data.error || "Error al registrarse";
@@ -141,13 +144,17 @@ export const AuthProvider = ({ children }) => {
             }
         } catch (err) {
             console.error(err);
-            alert('Error: ' + (err.message || 'Error de conexión'));
+            let msg = err.message || 'Error desconocido';
+            if (msg.includes('Failed to fetch') || msg.includes('Network request failed')) {
+                msg = 'No se pudo conectar al servidor. Verifica tu conexión a internet e inténtalo de nuevo.';
+            }
+            alert(msg);
             return false;
         }
     };
 
     return (
-        <AuthContext.Provider value={{ user, login, logout, register, loading }}>
+        <AuthContext.Provider value={{ user, login, logout, register, updateUser, loading }}>
             {loading ? (
                 <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: 'white', color: 'black' }}>
                     <h2>Cargando aplicación...</h2>

@@ -539,6 +539,36 @@ const Booking = () => {
                             <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <MapPin size={20} /> Ubicación y Contacto
                             </h3>
+
+                            {user && user.default_address && (
+                                <div style={{ marginBottom: '16px' }}>
+                                    <button
+                                        onClick={() => setFormData({
+                                            ...formData,
+                                            address: user.default_address,
+                                            lat: parseFloat(user.default_lat),
+                                            lng: parseFloat(user.default_lng)
+                                        })}
+                                        style={{
+                                            padding: '8px 12px',
+                                            backgroundColor: '#E3F2FD',
+                                            color: 'var(--color-action-blue)',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            cursor: 'pointer',
+                                            fontSize: '0.9rem',
+                                            fontWeight: '600',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            width: '100%'
+                                        }}
+                                    >
+                                        <MapPin weight="fill" />
+                                        Usar mi dirección guardada
+                                    </button>
+                                </div>
+                            )}
                             <div style={{ position: 'relative' }}>
                                 <Input
                                     placeholder="Dirección completa"

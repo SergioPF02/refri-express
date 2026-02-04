@@ -166,19 +166,27 @@ const NotificationBell = () => {
                                             drag="x"
                                             dragConstraints={{ left: 0, right: 0 }}
                                             dragElastic={0.5}
-                                            onDragEnd={(e, { offset, velocity }) => {
+                                            onDragEnd={async (e, { offset }) => {
                                                 if (offset.x < -50) { // Swipe Left to delete
-                                                    // Optimistic delete
+                                                    // Optimistic update
+                                                    const wasUnread = !notif.is_read;
                                                     setNotifications(prev => prev.filter(n => n.id !== notif.id));
-                                                    handleMarkAsRead(notif.id, true); // Mark read effectively deletes from view if we filtered? 
-                                                    // Ideally we want a DELETE endpoint or just hide it.
-                                                    // User said "eliminen al deslizar".
-                                                    // Assuming backend delete or just mark read?
-                                                    // Let's implement DELETE call if logical, or just hide.
-                                                    // For now just hide from list (local) and mark read. 
-                                                    // Actually let's assume "mark read" is enough to "dismiss" visually if we filter?
-                                                    // But the list shows READ messages too (white background).
-                                                    // So we must remove it from the list.
+
+                                                    // Update counter if it was unread
+                                                    if (wasUnread) {
+                                                        setUnreadCount(prev => Math.max(0, prev - 1));
+                                                    }
+
+                                                    // Call backend to delete permenantly
+                                                    try {
+                                                        await fetch(`${API_URL}/api/notifications/${notif.id}`, {
+                                                            method: 'DELETE',
+                                                            headers: { 'Authorization': `Bearer ${user.token}` }
+                                                        });
+                                                    } catch (err) {
+                                                        console.error("Error deleting notification:", err);
+                                                        // Revert if failed? For UX usually we just log error unless critical.
+                                                    }
                                                 }
                                             }}
                                             style={{

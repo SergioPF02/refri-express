@@ -11,6 +11,7 @@ export default defineConfig({
     }
   },
   optimizeDeps: {
-    exclude: ['@capacitor/android', 'android'] // 'android' is folder but safe to ignore
+    exclude: ['@capacitor/android', 'android'],
+    entries: ['!**/android/**'] // Explicitly tell Vite not to scan android folder for entries
   }
 })
