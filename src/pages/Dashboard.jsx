@@ -749,7 +749,7 @@ const Dashboard = () => {
                                                 )}
 
                                                 {/* 2. Schedule Visit (If no date yet) */}
-                                                {job.status === 'Accepted' && parseInt(job.price) > 0 && !job.date && (
+                                                {job.status === 'Accepted' && !job.date && (
                                                     <button
                                                         onClick={() => setEditingJob({ id: job.id, mode: 'schedule', date: '', time: '' })}
                                                         style={{ padding: '12px', backgroundColor: '#F2994A', color: 'white', border: 'none', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
@@ -758,8 +758,8 @@ const Dashboard = () => {
                                                     </button>
                                                 )}
 
-                                                {/* 3. Start Work (If Price Set) */}
-                                                {job.status === 'Accepted' && parseInt(job.price) > 0 && (
+                                                {/* 3. Start Work (Always available if Accepted) */}
+                                                {job.status === 'Accepted' && (
                                                     <button
                                                         onClick={() => handleStatusUpdate(job.id, 'In Progress')}
                                                         style={{ padding: '12px', backgroundColor: 'var(--color-action-blue)', color: 'white', border: 'none', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
@@ -771,7 +771,13 @@ const Dashboard = () => {
                                                 {/* 4. Finish (If In Progress) */}
                                                 {job.status === 'In Progress' && (
                                                     <button
-                                                        onClick={() => handleStatusUpdate(job.id, 'Completed')}
+                                                        onClick={() => {
+                                                            if (parseInt(job.price) <= 0) {
+                                                                alert("⚠️ No puedes finalizar en $0. Por favor cotiza el servicio o cobra visita.");
+                                                            } else {
+                                                                handleStatusUpdate(job.id, 'Completed');
+                                                            }
+                                                        }}
                                                         style={{ padding: '12px', backgroundColor: '#2E7D32', color: 'white', border: 'none', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
                                                     >
                                                         <CheckCircle size={20} /> Finalizar Trabajo

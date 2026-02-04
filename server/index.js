@@ -324,7 +324,7 @@ app.put('/api/bookings/:id/details', authenticateToken, async (req, res) => {
             fields.push(`items = $${idx++}`);
             values.push(JSON.stringify(req.body.items));
         }
-        if (status !== undefined) { fields.push(`status = $${idx++}`); values.push(status); }
+
 
         if (fields.length === 0) return res.json({ message: "No changes" });
 
