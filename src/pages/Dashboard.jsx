@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock, MapPin, CurrencyDollar, CheckCircle, Phone, NavigationArrow, Play, User, WhatsappLogo, Envelope } from 'phosphor-react';
+import { ArrowLeft, Clock, MapPin, CurrencyDollar, CheckCircle, Phone, NavigationArrow, Play, User, WhatsappLogo, Envelope, Trash } from 'phosphor-react';
 import { useAuth } from '../context/AuthContext';
 import { getSocket } from '../socket';
 import { API_URL } from '../config';
