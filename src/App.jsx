@@ -7,6 +7,7 @@ import Quotation from './pages/Quotation';
 import Success from './pages/Success';
 
 import Dashboard from './pages/Dashboard';
+import AdminDashboard from './pages/AdminDashboard';
 
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -35,6 +36,15 @@ function App() {
             element={
               <ProtectedRoute requiredRole="worker">
                 <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminDashboard />
               </ProtectedRoute>
             }
           />

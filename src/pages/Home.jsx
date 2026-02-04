@@ -57,6 +57,27 @@ const Home = () => {
                     >
                         <User size={20} color="var(--color-action-blue)" weight="bold" />
                     </button>
+
+                    {/* Admin Button */}
+                    {user && user.role === 'admin' && (
+                        <button
+                            onClick={() => navigate('/admin')}
+                            style={{
+                                padding: '8px 16px',
+                                backgroundColor: '#212121',
+                                borderRadius: '20px',
+                                color: 'white',
+                                fontWeight: 'bold',
+                                fontSize: '0.9rem',
+                                border: 'none',
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                            }}
+                        >
+                            Panel Admin
+                        </button>
+                    )}
+
                     <div
                         onClick={logout}
                         style={{
