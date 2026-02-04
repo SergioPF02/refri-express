@@ -312,7 +312,8 @@ const ClientOrders = () => {
                                                             tableRows.push(["", ""]);
                                                             tableRows.push(["TOTAL PAGADO", `$${order.price}`]);
 
-                                                            doc.autoTable({
+                                                            // Use autoTable function directly instead of doc.autoTable
+                                                            autoTable(doc, {
                                                                 startY: 70,
                                                                 head: [tableColumn],
                                                                 body: tableRows,
@@ -322,7 +323,8 @@ const ClientOrders = () => {
                                                             });
 
                                                             // Warranty Disclaimer
-                                                            const finalY = doc.lastAutoTable.finalY + 15;
+                                                            // Note: autoTable modifies doc.lastAutoTable.finalY even if called as function
+                                                            const finalY = (doc.lastAutoTable ? doc.lastAutoTable.finalY : 150) + 15;
                                                             doc.setDrawColor(255, 152, 0); // Orange border
                                                             doc.setFillColor(255, 243, 224); // Light orange bg
                                                             doc.rect(14, finalY, 182, 25, 'FD');
