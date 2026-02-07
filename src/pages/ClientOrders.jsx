@@ -11,7 +11,7 @@ import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 // Custom Technician Icon (Truck Emoji as SVG)
 const truckIconUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`

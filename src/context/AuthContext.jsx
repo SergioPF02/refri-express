@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { API_URL } from '../config';
+import { api } from '../api/client';
+
 import { Preferences } from '@capacitor/preferences';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
@@ -51,14 +52,8 @@ export const AuthProvider = ({ children }) => {
                         console.log('Push Token:', token.value);
                         // Send to backend
                         try {
-                            await fetch(`${API_URL}/api/users/device-token`, {
-                                method: 'PUT',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'Authorization': `Bearer ${user.token}`
-                                },
-                                body: JSON.stringify({ token: token.value })
-                            });
+                            // api client handles auth headers automatically via Preferences
+                            await api.put('/api/users/device-token', { token: token.value });
                         } catch (err) {
                             console.error("Error sending token to backend", err);
                         }
@@ -84,23 +79,12 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (userData) => {
         try {
-            const response = await fetch(`${API_URL}/api/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(userData)
-            });
-            const data = await response.json();
-
-            if (response.ok) {
-                updateUser(data);
-                return true;
-            } else {
-                alert(data.error);
-                return false;
-            }
+            const data = await api.post('/api/auth/login', userData);
+            updateUser(data);
+            return true;
         } catch (err) {
             console.error(err);
-            alert('Error connecting to server');
+            alert(err.message || 'Error connecting to server');
             return false;
         }
     };
@@ -117,38 +101,18 @@ export const AuthProvider = ({ children }) => {
 
     const register = async (userData) => {
         try {
-            const response = await fetch(`${API_URL}/api/auth/register`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(userData)
-            });
-
-            const text = await response.text();
-            let data;
-            try {
-                data = JSON.parse(text);
-            } catch {
-                throw new Error(text || "Error del servidor (no JSON)");
-            }
-
-            if (response.ok) {
-                // Auto login after register
-                updateUser(data);
-                return true;
-            } else {
-                let errorMsg = data.error || "Error al registrarse";
-                if (errorMsg.includes("already exists")) errorMsg = "El correo ya está registrado.";
-                if (errorMsg.includes("Password")) errorMsg = "La contraseña es muy débil.";
-                alert(errorMsg);
-                return false;
-            }
+            const data = await api.post('/api/auth/register', userData);
+            // Auto login after register
+            updateUser(data);
+            return true;
         } catch (err) {
             console.error(err);
-            let msg = err.message || 'Error desconocido';
-            if (msg.includes('Failed to fetch') || msg.includes('Network request failed')) {
-                msg = 'No se pudo conectar al servidor. Verifica tu conexión a internet e inténtalo de nuevo.';
-            }
-            alert(msg);
+            let errorMsg = err.message || "Error al registrarse";
+            if (errorMsg.includes("already exists")) errorMsg = "El correo ya está registrado.";
+            if (errorMsg.includes("Password")) errorMsg = "La contraseña es muy débil.";
+            if (err.status === 404 || err.status === 500) errorMsg = "Error del servidor. Inténtalo más tarde.";
+
+            alert(errorMsg);
             return false;
         }
     };

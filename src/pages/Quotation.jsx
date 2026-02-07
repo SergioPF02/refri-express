@@ -8,6 +8,7 @@ import MapSelector from '../components/MapSelector';
 import { useAuth } from '../context/AuthContext';
 import { MapPin } from 'phosphor-react';
 import { API_URL } from '../config';
+import { generateQuotationPDF } from '../utils/pdfGenerator';
 
 const Quotation = () => {
     const navigate = useNavigate();
@@ -69,6 +70,69 @@ const Quotation = () => {
         }
     };
 
+    const handleGeneratePDF = () => {
+        const data = {
+            name: user?.name,
+            phone: customContact || user?.phone,
+            address: `${address} ${addressDetails}`,
+            description,
+            service: 'Reparación / Cotización',
+            items: [], // You can add items logic here if you have a cart
+            price: 0
+        };
+        const doc = generateQuotationPDF(data);
+        return doc;
+    };
+
+    const handlePreviewPDF = () => {
+        const doc = handleGeneratePDF();
+        window.open(doc.output('bloburl'), '_blank');
+    };
+
+    const handleSendEmail = async (e) => {
+        e.preventDefault();
+
+        let targetEmail = customContact;
+        if (contactMethod === 'email') {
+            targetEmail = customContact;
+        } else if (user?.email) {
+            targetEmail = user.email;
+        } else {
+            const inputEmail = prompt("Por favor ingresa tu correo para enviarte la cotización:");
+            if (!inputEmail) return;
+            targetEmail = inputEmail;
+        }
+
+        try {
+            const doc = handleGeneratePDF();
+            const pdfBase64 = doc.output('datauristring').split(',')[1];
+
+            const response = await fetch(`${API_URL}/api/quotations/send`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${user?.token || ''}` // Use token if available
+                },
+                body: JSON.stringify({
+                    email: targetEmail,
+                    pdfBase64,
+                    customerName: user?.name || 'Cliente'
+                })
+            });
+
+            if (response.ok) {
+                alert(`Cotización enviada a ${targetEmail}`);
+                navigate('/success', { state: { service: 'Reparación' } });
+            } else {
+                const err = await response.json();
+                alert('Error al enviar correo: ' + err.error);
+            }
+        } catch (error) {
+            console.error(error);
+            alert('Error al generar o enviar la cotización.');
+        }
+    };
+
     return (
         <div className="container" style={{ padding: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: '24px' }}>
@@ -86,7 +150,7 @@ const Quotation = () => {
                 </div>
 
                 <p style={{ textAlign: 'center', color: '#666', marginBottom: '24px' }}>
-                    Cuéntanos qué problema tiene tu equipo y te contactaremos con un presupuesto estimado.
+                    Cuéntanos qué problema tiene tu equipo. Puedes generar una cotización formal PDF al instante.
                 </p>
 
                 <form onSubmit={handleSubmit}>
@@ -260,7 +324,17 @@ const Quotation = () => {
                         </div>
                     )}
 
-                    <Button type="submit">Enviar Solicitud</Button>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <Button type="button" onClick={handlePreviewPDF} style={{ backgroundColor: '#FF9800' }}>
+                            Vista Previa PDF
+                        </Button>
+                        <Button type="button" onClick={handleSendEmail} style={{ backgroundColor: '#2196F3' }}>
+                            Enviar por Correo
+                        </Button>
+                    </div>
+                    <div style={{ marginTop: '10px' }}>
+                        <Button type="submit" style={{ width: '100%' }}>Solicitar Visita Técnica</Button>
+                    </div>
                 </form>
             </div >
         </div >
