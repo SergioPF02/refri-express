@@ -39,7 +39,7 @@ exports.register = async (req, res) => {
 
         // Generate Token
         const user = newUser.rows[0];
-        const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '24h' });
+        const token = jwt.sign({ id: user.id, role: user.role, email: user.email }, JWT_SECRET, { expiresIn: '24h' });
 
         res.json({ ...user, token });
     } catch (err) {
@@ -66,7 +66,7 @@ exports.login = async (req, res) => {
         const { id, name, role } = user.rows[0];
 
         // Generate Token
-        const token = jwt.sign({ id, role }, JWT_SECRET, { expiresIn: '24h' });
+        const token = jwt.sign({ id, role, email }, JWT_SECRET, { expiresIn: '24h' });
 
         res.json({ id, name, email, role, token });
 
