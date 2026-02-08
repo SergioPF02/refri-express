@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Bell } from 'phosphor-react';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { API_URL } from '../config';
+import { api } from '../api/client';
 import { getSocket } from '../socket';
 
 interface Notification {
@@ -25,10 +25,7 @@ const NotificationBell = () => {
         if (!user) return;
 
         // Fetch initial notifications
-        fetch(`${API_URL}/api/notifications`, {
-            headers: { 'Authorization': `Bearer ${user.token}` }
-        })
-            .then(res => res.json())
+        api.get('/api/notifications')
             .then((data: Notification[]) => {
                 setNotifications(data);
                 setUnreadCount(data.filter(n => !n.is_read).length);
@@ -39,10 +36,7 @@ const NotificationBell = () => {
         socket.on('notification', (payload: any) => {
             if (payload.user_email === user.email) {
                 // Re-fetch or manually add. Let's simple re-fetch for sync
-                fetch(`${API_URL}/api/notifications`, {
-                    headers: { 'Authorization': `Bearer ${user.token}` }
-                })
-                    .then(res => res.json())
+                api.get('/api/notifications')
                     .then((data: Notification[]) => {
                         setNotifications(data);
                         setUnreadCount(data.filter(n => !n.is_read).length);
@@ -72,14 +66,12 @@ const NotificationBell = () => {
     const handleMarkAsRead = async (id: number, isRead: boolean) => {
         if (isRead) return;
         try {
-            await fetch(`${API_URL}/api/notifications/${id}/read`, {
-                method: 'PUT',
-                headers: { 'Authorization': `Bearer ${user?.token}` }
-            });
-            // Update local state
+            await api.put(`/api/notifications/${id}/read`, {});
             setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
             setUnreadCount(prev => Math.max(0, prev - 1));
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error(e);
+        }
     };
 
     const toggleDropdown = () => setShowDropdown(!showDropdown);
@@ -184,21 +176,11 @@ const NotificationBell = () => {
 
                                                     // Call backend to delete permenantly
                                                     try {
-                                                        const res = await fetch(`${API_URL}/api/notifications/${notif.id}`, {
-                                                            method: 'DELETE',
-                                                            headers: { 'Authorization': `Bearer ${user?.token}` }
-                                                        });
-
-                                                        if (!res.ok) {
-                                                            const errText = await res.text();
-                                                            console.error("Failed to delete:", errText);
-                                                            // Revert optimistic update if needed or just alert
-                                                            alert("Error al eliminar notificación: " + (res.status === 404 ? "El servidor no reconoce la ruta (Reinicia el backend)" : errText));
-                                                            // Optional: revert state logic here
-                                                        }
-                                                    } catch (err) {
+                                                        await api.delete(`/api/notifications/${notif.id}`);
+                                                    } catch (err: any) {
                                                         console.error("Error deleting notification:", err);
-                                                        alert("Error de conexión al eliminar.");
+                                                        const msg = err.status === 404 ? "El servidor no reconoce la ruta" : err.message;
+                                                        alert("Error de conexión al eliminar: " + msg);
                                                     }
                                                 }
                                             }}

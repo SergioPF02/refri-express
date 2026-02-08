@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Clock, MapPin, CurrencyDollar, Phone, NavigationArrow, WhatsappLogo, Envelope, Trash, Play, CheckCircle } from 'phosphor-react';
 import { useAuth } from '../context/AuthContext';
 import { getSocket } from '../socket';
-import { API_URL } from '../config';
+import { api } from '../api/client';
 import { SERVICE_CATALOG } from '../services_catalog'; // Assume this file exists and exports SERVICE_CATALOG
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -102,8 +102,8 @@ const Dashboard = () => {
 
     useEffect(() => {
         // Initial fetch
-        fetch(`${API_URL}/api/bookings`)
-            .then(res => res.json())
+        // Initial fetch
+        api.get('/api/bookings')
             .then(data => setBookings(data))
             .catch(err => console.error(err));
 
@@ -273,38 +273,15 @@ const Dashboard = () => {
 
     const handleAcceptJob = async (jobId: number) => {
         if (!user) return;
-        console.log("Attempting to accept job", jobId, "at URL:", `${API_URL}/api/bookings/${jobId}/accept`);
+        console.log("Attempting to accept job", jobId);
         try {
-            const response = await fetch(`${API_URL}/api/bookings/${jobId}/accept`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${user.token}`
-                },
-                body: JSON.stringify({
-                    // technician_name is needed
-                    technician_name: user.name
-                })
+            await api.put(`/api/bookings/${jobId}/accept`, {
+                technician_name: user.name
             });
-
-            if (!response.ok) {
-                // Read body once as text to avoid "stream already read" error
-                const textBody = await response.text();
-                let errorMessage = "Error desconocido";
-                try {
-                    const data = JSON.parse(textBody);
-                    errorMessage = data.error || "Error del servidor";
-                } catch (e) {
-                    // If not JSON, use the raw text (likely an HTML error page or CORS message)
-                    errorMessage = textBody || `Error ${response.status} (Sin cuerpo)`;
-                }
-                alert(`Error al aceptar (Status ${response.status}): ${errorMessage}`);
-                return;
-            }
             // UI update handled by socket 'job_taken' event
         } catch (err: any) {
             console.error(err);
-            alert(`Error de Conexión. intentando conectar a: ${API_URL}\nDetalle: ${err.message}`);
+            alert(`Error al aceptar: ${err.message}`);
         }
     };
 
@@ -312,26 +289,14 @@ const Dashboard = () => {
         if (!user) return;
         setLoadingJobId(jobId);
         try {
-            const response = await fetch(`${API_URL}/api/bookings/${jobId}/status`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${user.token}`
-                },
-                body: JSON.stringify({ status: newStatus })
-            });
+            await api.put(`/api/bookings/${jobId}/status`, { status: newStatus });
 
-            if (!response.ok) {
-                const text = await response.text();
-                alert(`Error actualizando el estado: ${text}`);
-            } else {
-                if (newStatus === 'Completed') {
-                    alert("✅ Trabajo finalizado correctamente. Se ha enviado el recibo por correo.");
-                }
+            if (newStatus === 'Completed') {
+                alert("✅ Trabajo finalizado correctamente. Se ha enviado el recibo por correo.");
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            alert("Error de conexión al actualizar estado.");
+            alert(`Error actualizando el estado: ${err.message}`);
         } finally {
             setLoadingJobId(null);
         }
@@ -352,25 +317,12 @@ const Dashboard = () => {
         }
 
         try {
-            const response = await fetch(`${API_URL}/api/bookings/${editingJob.id}/details`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${user.token}`
-                },
-                body: JSON.stringify(payload)
-            });
-
-            if (response.ok) {
-                setEditingJob(null);
-                alert("Actualización exitosa");
-            } else {
-                const data = await response.json();
-                alert(data.error || "Error al actualizar");
-            }
-        } catch (err) {
+            await api.put(`/api/bookings/${editingJob.id}/details`, payload);
+            setEditingJob(null);
+            alert("Actualización exitosa");
+        } catch (err: any) {
             console.error(err);
-            alert("Error de conexión");
+            alert(err.message || "Error al actualizar");
         }
     };
 
@@ -574,12 +526,11 @@ const Dashboard = () => {
                                                 onClick={async () => {
                                                     if (window.confirm("⚠️ ADVERTENCIA: ¿Estás seguro de liberar este pedido?\n\nAl hacerlo antes de iniciar el trabajo, se restarán puntos de tu reputación y el trabajo volverá a la lista de disponibles.")) {
                                                         try {
-                                                            const response = await fetch(`${API_URL}/api/bookings/${job.id}/release`, {
-                                                                method: 'PUT',
-                                                                headers: { 'Authorization': `Bearer ${user?.token}` }
-                                                            });
-                                                            if (!response.ok) alert("Error al liberar");
-                                                        } catch (e) { console.error(e); }
+                                                            await api.put(`/api/bookings/${job.id}/release`, {});
+                                                        } catch (e) {
+                                                            console.error(e);
+                                                            alert("Error al liberar");
+                                                        }
                                                     }
                                                 }}
                                                 style={{

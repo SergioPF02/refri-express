@@ -1,13 +1,12 @@
 import { useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Wrench } from 'phosphor-react';
+import { ArrowLeft, Wrench, MapPin } from 'phosphor-react';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import TonnageSelector from '../components/TonnageSelector';
 import MapSelector from '../components/MapSelector';
 import { useAuth } from '../context/AuthContext';
-import { MapPin } from 'phosphor-react';
-import { API_URL } from '../config';
+import { api } from '../api/client';
 import { generateQuotationPDF } from '../utils/pdfGenerator';
 import jsPDF from 'jspdf';
 
@@ -60,21 +59,12 @@ const Quotation = () => {
         };
 
         try {
-            const response = await fetch(`${API_URL}/api/bookings`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(quotationData)
-            });
-
-            if (response.ok) {
-                alert('Solicitud de cotización enviada. Nos pondremos en contacto contigo pronto.');
-                navigate('/success', { state: quotationData });
-            } else {
-                alert('Hubo un error al enviar la solicitud.');
-            }
+            await api.post('/api/bookings', quotationData);
+            alert('Solicitud de cotización enviada. Nos pondremos en contacto contigo pronto.');
+            navigate('/success', { state: quotationData });
         } catch (error) {
             console.error('Error submitting quotation:', error);
-            alert('Error de conexión.');
+            alert('Hubo un error al enviar la solicitud.');
         }
     };
 
@@ -115,29 +105,17 @@ const Quotation = () => {
             const doc = handleGeneratePDF();
             const pdfBase64 = doc.output('datauristring').split(',')[1];
 
-            const response = await fetch(`${API_URL}/api/quotations/send`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${user?.token || ''}` // Use token if available
-                },
-                body: JSON.stringify({
-                    email: targetEmail,
-                    pdfBase64,
-                    customerName: user?.name || 'Cliente'
-                })
+            await api.post('/api/quotations/send', {
+                email: targetEmail,
+                pdfBase64,
+                customerName: user?.name || 'Cliente'
             });
 
-            if (response.ok) {
-                alert(`Cotización enviada a ${targetEmail}`);
-                navigate('/success', { state: { service: 'Reparación' } });
-            } else {
-                const err = await response.json();
-                alert('Error al enviar correo: ' + err.error);
-            }
-        } catch (error) {
+            alert(`Cotización enviada a ${targetEmail}`);
+            navigate('/success', { state: { service: 'Reparación' } });
+        } catch (error: any) {
             console.error(error);
-            alert('Error al generar o enviar la cotización.');
+            alert('Error al enviar correo: ' + (error.message || 'Error desconocido'));
         }
     };
 

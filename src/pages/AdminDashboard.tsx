@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 // Using only standard icons for safety
 import { Users, Briefcase, ArrowLeft, ShieldCheck, User, Wrench, SignOut, CurrencyDollar } from 'phosphor-react';
-import { API_URL } from '../config';
+import { api } from '../api/client';
 import { User as UserType } from '../types';
 
 interface DashboardStats {
@@ -41,51 +41,34 @@ const AdminDashboard = () => {
     const fetchStats = async () => {
         if (!user) return;
         try {
-            const res = await fetch(`${API_URL}/api/admin/stats`, {
-                headers: { 'Authorization': `Bearer ${user.token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setStats(data);
-            } else {
-                console.error("Stats Error:", res.status);
-            }
-        } catch (e) { console.error(e); }
+            const data = await api.get('/api/admin/stats');
+            setStats(data);
+        } catch (e) {
+            console.error("Stats Error:", e);
+        }
     };
 
     const fetchUsers = async () => {
         if (!user) return;
         try {
-            const res = await fetch(`${API_URL}/api/admin/users`, {
-                headers: { 'Authorization': `Bearer ${user.token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setUsersList(data);
-            }
-        } catch (e) { console.error(e); }
+            const data = await api.get('/api/admin/users');
+            setUsersList(data);
+        } catch (e) {
+            console.error(e);
+        }
     };
 
     const handleRoleChange = async (userId: number, newRole: 'admin' | 'worker' | 'client') => {
         if (!user) return;
         if (!window.confirm(`¿Estás seguro de cambiar el rol a ${newRole}?`)) return;
         try {
-            const res = await fetch(`${API_URL}/api/admin/users/${userId}/role`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${user.token}`
-                },
-                body: JSON.stringify({ role: newRole })
-            });
-
-            if (res.ok) {
-                alert("Rol actualizado");
-                fetchUsers();
-            } else {
-                alert("Error al actualizar");
-            }
-        } catch (e) { console.error(e); }
+            await api.put(`/api/admin/users/${userId}/role`, { role: newRole });
+            alert("Rol actualizado");
+            fetchUsers();
+        } catch (e) {
+            console.error(e);
+            alert("Error al actualizar");
+        }
     };
 
     if (error) {

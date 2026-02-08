@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import MapSelector from '../components/MapSelector';
-import { API_URL } from '../config';
+import { api } from '../api/client';
 
 interface NominatimResult {
     place_id: number;
@@ -48,23 +48,18 @@ const Profile = () => {
         if (!user) return;
         const fetchProfile = async () => {
             try {
-                const response = await fetch(`${API_URL}/api/users/profile`, {
-                    headers: { 'Authorization': `Bearer ${user.token}` }
+                const data = await api.get('/api/users/profile');
+                setFormData({
+                    name: data.name || '',
+                    phone: data.phone || '',
+                    bio: data.bio || '',
+                    photo_url: data.photo_url || '',
+                    default_address: data.default_address || '',
+                    default_lat: data.default_lat || 24.809065,
+                    default_lng: data.default_lng || -107.394017
                 });
-                if (response.ok) {
-                    const data = await response.json();
-                    setFormData({
-                        name: data.name || '',
-                        phone: data.phone || '',
-                        bio: data.bio || '',
-                        photo_url: data.photo_url || '',
-                        default_address: data.default_address || '',
-                        default_lat: data.default_lat || 24.809065,
-                        default_lng: data.default_lng || -107.394017
-                    });
-                    setPreviewUrl(null);
-                    setSelectedFile(null);
-                }
+                setPreviewUrl(null);
+                setSelectedFile(null);
             } catch (err) {
                 console.error(err);
             } finally {
@@ -124,32 +119,19 @@ const Profile = () => {
                 data.append('photo', selectedFile);
             }
 
-            const response = await fetch(`${API_URL}/api/users/profile`, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${user.token}`
-                },
-                body: data
-            });
+            const updatedUser = await api.upload('/api/users/profile', data);
 
-            if (response.ok) {
-                const updatedUser = await response.json();
-                setFormData(prev => ({ ...prev, photo_url: updatedUser.photo_url }));
-                setPreviewUrl(null);
-                setSelectedFile(null);
+            setFormData(prev => ({ ...prev, photo_url: updatedUser.photo_url }));
+            setPreviewUrl(null);
+            setSelectedFile(null);
 
-                // Update Globally
-                updateUser({ ...user, ...updatedUser });
+            // Update Globally
+            updateUser({ ...user, ...updatedUser });
 
-                alert('Perfil actualizado correctamente');
-            } else {
-                const err = await response.text();
-                console.error("Save Error:", err);
-                alert('Error al guardar: ' + err);
-            }
+            alert('Perfil actualizado correctamente');
         } catch (err: any) {
             console.error(err);
-            alert('Error de conexión: ' + err.message);
+            alert('Error al guardar: ' + (err.message || 'Error desconocido'));
         }
     };
 

@@ -11,7 +11,7 @@ import TonnageSelector from '../components/TonnageSelector';
 import MapSelector from '../components/MapSelector';
 import serviceCleaning from '../assets/service-cleaning.png';
 import serviceGas from '../assets/service-gas.png';
-import { API_URL } from '../config';
+import { api } from '../api/client';
 import '../components/Calendar.css';
 
 interface CartItem {
@@ -113,8 +113,7 @@ const Booking = () => {
     }, []);
 
     const fetchStats = (year: number, month: number) => {
-        fetch(`${API_URL}/api/bookings/stats?year=${year}&month=${month}`)
-            .then(res => res.json())
+        api.get(`/api/bookings/stats?year=${year}&month=${month}`)
             .then((data: MonthlyStat[]) => {
                 const statsMap: Record<string, string> = {};
                 data.forEach(item => {
@@ -135,8 +134,7 @@ const Booking = () => {
     // Fetch taken slots when date changes
     useEffect(() => {
         if (formData.date) {
-            fetch(`${API_URL}/api/bookings/availability?date=${formData.date}`)
-                .then(res => res.json())
+            api.get(`/api/bookings/availability?date=${formData.date}`)
                 .then(setTakenSlots)
                 .catch(console.error);
         }
@@ -217,59 +215,52 @@ const Booking = () => {
         if (step < 4) {
             nextStep();
         } else {
+
+            // Build Description from Cart + Manual Input
+            const cartDescription = cart.map(item => {
+                const tons = item.service !== 'Reparación' ? `(${item.tonnage} Ton)` : '';
+                return `${item.quantity}x ${item.service} ${tons}`;
+            }).join(', ');
+
+            // Only include problem description if it exists (Repair)
+            const finalDescription = isRepairIncluded
+                ? `Problema: ${formData.problem_description}. Items: ${cartDescription}`
+                : `Items: ${cartDescription}`;
+
+            const totalPrice = getTotalPrice();
+            const primaryService = cart.length === 1 ? cart[0].service : 'Múltiple';
+
+            // Determine max tonnage: Use manual if set (Repair), else cart max
+            const maxTonnage = isRepairIncluded
+                ? formData.manual_tonnage
+                : (Math.max(...cart.map(i => i.tonnage || 0)) || 1);
+
+            const parts = formData.address.split(',');
+            const street = parts[0];
+            const rest = parts.slice(1).join(',');
+            const formattedAddress = `${street} ${formData.addressDetails || ''},${rest}`;
+
+            const bookingData = {
+                ...formData,
+                formattedAddress,
+                address: formattedAddress,
+                service: primaryService,
+                description: finalDescription,
+                price: totalPrice,
+                tonnage: maxTonnage,
+                user_email: user?.email || 'guest',
+                contact_method: isRepairIncluded ? formData.contact_method : 'App', // Only set contact method for Repairs
+                quantity: cart.reduce((acc, item) => acc + item.quantity, 0)
+            };
+
             try {
-                // Build Description from Cart + Manual Input
-                const cartDescription = cart.map(item => {
-                    const tons = item.service !== 'Reparación' ? `(${item.tonnage} Ton)` : '';
-                    return `${item.quantity}x ${item.service} ${tons}`;
-                }).join(', ');
-
-                // Only include problem description if it exists (Repair)
-                const finalDescription = isRepairIncluded
-                    ? `Problema: ${formData.problem_description}. Items: ${cartDescription}`
-                    : `Items: ${cartDescription}`;
-
-                const totalPrice = getTotalPrice();
-                const primaryService = cart.length === 1 ? cart[0].service : 'Múltiple';
-
-                // Determine max tonnage: Use manual if set (Repair), else cart max
-                const maxTonnage = isRepairIncluded
-                    ? formData.manual_tonnage
-                    : (Math.max(...cart.map(i => i.tonnage || 0)) || 1);
-
-                const parts = formData.address.split(',');
-                const street = parts[0];
-                const rest = parts.slice(1).join(',');
-                const formattedAddress = `${street} ${formData.addressDetails || ''},${rest}`;
-
-                const bookingData = {
-                    ...formData,
-                    formattedAddress,
-                    address: formattedAddress,
-                    service: primaryService,
-                    description: finalDescription,
-                    price: totalPrice,
-                    tonnage: maxTonnage,
-                    user_email: user?.email || 'guest',
-                    contact_method: isRepairIncluded ? formData.contact_method : 'App', // Only set contact method for Repairs
-                    quantity: cart.reduce((acc, item) => acc + item.quantity, 0)
-                };
-
-                const response = await fetch(`${API_URL}/api/bookings`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(bookingData)
-                });
-
-                if (response.ok) {
-                    navigate('/success', { state: bookingData });
-                } else {
-                    alert('Error al agendar.');
-                }
+                await api.post('/api/bookings', bookingData);
+                navigate('/success', { state: bookingData });
             } catch (err) {
                 console.error(err);
-                alert('Error connecting to server');
+                alert('Error al agendar.');
             }
+
         }
     };
 
