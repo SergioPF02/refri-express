@@ -12,6 +12,11 @@ exports.register = async (req, res) => {
             return res.status(400).json({ error: "Faltan campos obligatorios" });
         }
 
+        // Prevent Admin Registration
+        if (role === 'admin') {
+            return res.status(403).json({ error: "No es posible registrarse como administrador." });
+        }
+
         // Email Validation
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {

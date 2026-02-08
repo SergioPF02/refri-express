@@ -9,6 +9,7 @@ const transporter = nodemailer.createTransport({
 });
 
 const sendQuotationEmail = async (to, pdfBuffer, customerName) => {
+    // ... (Existing implementation preserved)
     const mailOptions = {
         from: `"Refri-Express" <${process.env.EMAIL_USER}>`,
         to: to,
@@ -41,4 +42,45 @@ const sendQuotationEmail = async (to, pdfBuffer, customerName) => {
     }
 };
 
-module.exports = { sendQuotationEmail };
+const sendCompletionEmail = async (to, pdfBuffer, customerName, serviceName) => {
+    const mailOptions = {
+        from: `"Refri-Express" <${process.env.EMAIL_USER}>`,
+        to: to,
+        subject: '✅ Servicio Finalizado - Tu Recibo',
+        html: `
+            <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto;">
+                <div style="background-color: #0288D1; padding: 20px; text-align: center; color: white;">
+                    <h1>¡Servicio Finalizado!</h1>
+                </div>
+                <div style="padding: 20px; border: 1px solid #ddd;">
+                    <p>Hola <strong>${customerName}</strong>,</p>
+                    <p>Nos complace informarte que tu servicio de <strong>${serviceName}</strong> ha sido completado con éxito.</p>
+                    <p>Adjunto encontrarás el recibo con los detalles del servicio y el costo total.</p>
+                    <p>Agradecemos tu confianza en nosotros.</p>
+                </div>
+                <div style="background-color: #f5f5f5; padding: 15px; text-align: center; font-size: 0.8em; color: #666;">
+                    <p>Refri-Express<br>¿Dudas? Contáctanos por este medio.</p>
+                </div>
+            </div>
+        `,
+        attachments: [
+            {
+                filename: `Recibo_RefriExpress_${Date.now()}.pdf`,
+                content: pdfBuffer,
+                contentType: 'application/pdf'
+            }
+        ]
+    };
+
+    try {
+        await transporter.sendMail(mailOptions);
+        console.log(`Completion Email sent to ${to}`);
+        return true;
+    } catch (error) {
+        console.error("Error sending completion email:", error);
+        // Don't throw, just log, so we don't break the response
+        return false;
+    }
+};
+
+module.exports = { sendQuotationEmail, sendCompletionEmail };

@@ -96,10 +96,31 @@ exports.releaseBooking = async (req, res) => {
 };
 
 // Update Booking Status
+const { generateReceiptPDF } = require('../utils/pdfGenerator');
+const { sendCompletionEmail } = require('../utils/email');
+
 exports.updateBookingStatus = async (req, res) => {
     try {
         const { id } = req.params;
         const { status } = req.body;
+        const { role, email, id: userId } = req.user;
+
+        // Check ownership/permissions
+        const bookingCheck = await pool.query("SELECT * FROM bookings WHERE id = $1", [id]);
+        if (bookingCheck.rows.length === 0) {
+            return res.status(404).json({ error: "Booking not found" });
+        }
+        const currentBooking = bookingCheck.rows[0];
+
+        // Authorization: Admin, Assigned Technician, or Owner (User)
+        // Workers can usually only update status to generic things, but let's allow it if they are assigned.
+        const isOwner = currentBooking.user_email === email;
+        const isAssignedWorker = currentBooking.technician_id === userId;
+        const isAdmin = role === 'admin';
+
+        if (!isAdmin && !isOwner && !isAssignedWorker) {
+            return res.status(403).json({ error: "No tienes permiso para modificar esta reserva." });
+        }
 
         const result = await pool.query(
             "UPDATE bookings SET status = $1 WHERE id = $2 RETURNING *",
@@ -116,6 +137,10 @@ exports.updateBookingStatus = async (req, res) => {
         // Notification logic
         try {
             const message = `Tu servicio de ${booking.service} ha cambiado a: ${status === 'In Progress' ? 'En Curso 🛠️' : 'Finalizado ✅'}`;
+
+            // Don't notify if the user themselves triggered the update (optional, but good UX)
+            // But usually this logic is for notifying the CLIENT when WORKER updates it.
+
             await pool.query(
                 "INSERT INTO notifications (user_id, message, type) VALUES ((SELECT id FROM users WHERE email = $1), $2, 'status_update')",
                 [booking.user_email, message]
@@ -129,8 +154,19 @@ exports.updateBookingStatus = async (req, res) => {
                 await sendPushNotification(userRes.rows[0].device_token, "Actualización de Servicio", message);
             }
 
+            // --- JOB COMPLETION EMAIL LOGIC ---
+            if (status === 'Finalizado' || status === 'Completed' || status === 'Terminado') {
+                console.log(`Job ${booking.id} completed. Generating receipt...`);
+                // Generate PDF
+                const pdfBuffer = await generateReceiptPDF(booking);
+
+                // Send Email
+                await sendCompletionEmail(booking.user_email, pdfBuffer, booking.name, booking.service);
+            }
+
         } catch (notifErr) {
-            console.error("Notification Error:", notifErr);
+            console.error("Notification/Email Error:", notifErr);
+            // Non-blocking error
         }
 
         io.emit('job_update', booking);
@@ -146,6 +182,19 @@ exports.updateBookingDetails = async (req, res) => {
     try {
         const { id } = req.params;
         const { date, time, price, description, status } = req.body;
+        const { role, email, id: userId } = req.user;
+
+        // Verify Perms
+        const check = await pool.query("SELECT * FROM bookings WHERE id = $1", [id]);
+        if (check.rows.length === 0) return res.status(404).json({ error: "Booking not found" });
+        const current = check.rows[0];
+
+        const isOwner = current.user_email === email;
+        const isAdmin = role === 'admin';
+        // Workers shouldn't edit details like price/description, usually. But let's restrict to Admin/Owner for now.
+        if (!isAdmin && !isOwner) {
+            return res.status(403).json({ error: "No autorizado." });
+        }
 
         const fields = [];
         const values = [];
@@ -290,10 +339,23 @@ exports.getMonthlyStats = async (req, res) => {
     }
 };
 
-// Get All Bookings (Mostly for Workers/History)
+// Get All Bookings (Filtered by Role)
 exports.getBookings = async (req, res) => {
     try {
-        const allBookings = await pool.query("SELECT * FROM bookings ORDER BY created_at DESC");
+        const { role, email } = req.user;
+        let query = "SELECT * FROM bookings";
+        let params = [];
+
+        // Admins and Workers see all (Workers might need filtering later but for now we trust them to see available jobs)
+        if (role === 'admin' || role === 'worker') {
+            query += " ORDER BY created_at DESC";
+        } else {
+            // Clients see only their own
+            query += " WHERE user_email = $1 ORDER BY created_at DESC";
+            params.push(email);
+        }
+
+        const allBookings = await pool.query(query, params);
         res.json(allBookings.rows);
     } catch (err) {
         console.error(err.message);

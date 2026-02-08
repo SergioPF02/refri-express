@@ -6,7 +6,7 @@ const { authenticateToken } = require('../middleware/auth');
 router.post('/', bookingController.createBooking);
 router.get('/availability', bookingController.getAvailability);
 router.get('/stats', bookingController.getMonthlyStats);
-router.get('/', bookingController.getBookings); // Should be protected or filtered? Original was open.
+router.get('/', authenticateToken, bookingController.getBookings); // Protected & Filtered in Controller
 
 // Protected (Client/Worker)
 router.put('/:id/accept', authenticateToken, bookingController.acceptBooking);

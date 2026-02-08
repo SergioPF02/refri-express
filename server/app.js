@@ -29,7 +29,35 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-app.use(cors());
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:3000',
+    'capacitor://localhost',
+    process.env.FRONTEND_URL, // Allow configured frontend
+    process.env.CLIENT_URL    // Alternative name
+].filter(Boolean); // Remove undefined values
+
+app.use(cors({
+    origin: function (origin, callback) {
+        // allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) === -1) {
+            // Disallow untrusted origins
+            // return callback(new Error('The CORS policy for this site does not allow access from the specified Origin.'), false);
+            // For development, we might be lenient or just strict. Let's be strict for security.
+            // If the user uses a new port, they must add it here.
+
+            // However, to avoid breaking the user's dev flow immediately if they use a random port:
+            // return callback(null, true); // TEMPORARY DEV
+
+            // I will implement the Strict version as requested by "Security Audit".
+            return callback(new Error('Bloqueado por CORS'), false);
+        }
+        return callback(null, true);
+    },
+    credentials: true
+}));
 app.use(express.json());
 
 // Routes
