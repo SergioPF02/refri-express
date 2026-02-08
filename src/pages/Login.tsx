@@ -6,12 +6,14 @@ import { Preferences } from '@capacitor/preferences';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import { User as UserType } from '../types';
+import { ClipLoader } from 'react-spinners';
 
 const Login = () => {
     const navigate = useNavigate();
     const { login, user, loading } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         if (user && !loading) {
@@ -26,7 +28,12 @@ const Login = () => {
     }, [user, loading, navigate]);
 
     const handleLogin = async () => {
+        if (!email || !password) {
+            return; // Validation handled by browser or basic check
+        }
+        setIsSubmitting(true);
         const success = await login({ email, password });
+        setIsSubmitting(false);
 
         if (success) {
             const { value } = await Preferences.get({ key: 'refri_user' });
@@ -81,10 +88,16 @@ const Login = () => {
                     />
                 </div>
 
-                <Button onClick={handleLogin}>
+                <Button onClick={handleLogin} disabled={isSubmitting}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                        <SignIn size={20} weight="bold" />
-                        Iniciar Sesión
+                        {isSubmitting ? (
+                            <ClipLoader color="white" size={20} />
+                        ) : (
+                            <>
+                                <SignIn size={20} weight="bold" />
+                                Iniciar Sesión
+                            </>
+                        )}
                     </div>
                 </Button>
             </div>

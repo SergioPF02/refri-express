@@ -4,6 +4,8 @@ import { Clock, MapPin, CurrencyDollar, Phone, NavigationArrow, WhatsappLogo, En
 import { useAuth } from '../context/AuthContext';
 import { getSocket } from '../socket';
 import { api } from '../api/client';
+import { toast } from 'react-hot-toast';
+import { ClipLoader, PulseLoader } from 'react-spinners';
 import { SERVICE_CATALOG } from '../services_catalog'; // Assume this file exists and exports SERVICE_CATALOG
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -99,6 +101,7 @@ const Dashboard = () => {
     const [heading, setHeading] = useState(0); // Bearing
     const [routeSteps, setRouteSteps] = useState<RouteStep[]>([]);
     const [routePath, setRoutePath] = useState<[number, number][]>([]);
+    const [isUpdatingDetails, setIsUpdatingDetails] = useState(false);
 
     useEffect(() => {
         // Initial fetch
@@ -273,15 +276,18 @@ const Dashboard = () => {
 
     const handleAcceptJob = async (jobId: number) => {
         if (!user) return;
-        console.log("Attempting to accept job", jobId);
         try {
+            setLoadingJobId(jobId);
             await api.put(`/api/bookings/${jobId}/accept`, {
                 technician_name: user.name
             });
+            toast.success('¡Trabajo aceptado!');
             // UI update handled by socket 'job_taken' event
         } catch (err: any) {
             console.error(err);
-            alert(`Error al aceptar: ${err.message}`);
+            toast.error(`Error al aceptar: ${err.message}`);
+        } finally {
+            setLoadingJobId(null);
         }
     };
 
@@ -292,11 +298,15 @@ const Dashboard = () => {
             await api.put(`/api/bookings/${jobId}/status`, { status: newStatus });
 
             if (newStatus === 'Completed') {
-                alert("✅ Trabajo finalizado correctamente. Se ha enviado el recibo por correo.");
+                toast.success("✅ Trabajo finalizado. Recibo enviado por correo.");
+            } else if (newStatus === 'In Progress') {
+                toast.success("Iniciando trabajo. ¡Suerte!");
+            } else if (newStatus === 'Cancelled') {
+                toast.success("Trabajo cancelado.");
             }
         } catch (err: any) {
             console.error(err);
-            alert(`Error actualizando el estado: ${err.message}`);
+            toast.error(`Error actualizando el estado: ${err.message}`);
         } finally {
             setLoadingJobId(null);
         }
@@ -317,12 +327,15 @@ const Dashboard = () => {
         }
 
         try {
+            setIsUpdatingDetails(true);
             await api.put(`/api/bookings/${editingJob.id}/details`, payload);
             setEditingJob(null);
-            alert("Actualización exitosa");
+            toast.success("Detalles actualizados correctamente");
         } catch (err: any) {
             console.error(err);
-            alert(err.message || "Error al actualizar");
+            toast.error(err.message || "Error al actualizar");
+        } finally {
+            setIsUpdatingDetails(false);
         }
     };
 
@@ -428,7 +441,7 @@ const Dashboard = () => {
                                                     </MapContainer>
                                                 ) : (
                                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: '10px', color: '#666', backgroundColor: '#f5f5f5' }}>
-                                                        <div className="pulse-dot" style={{ width: 20, height: 20 }}></div>
+                                                        <PulseLoader color="var(--color-action-blue)" size={10} />
                                                         Esperando señal GPS precisa...
                                                     </div>
                                                 )}
@@ -526,10 +539,14 @@ const Dashboard = () => {
                                                 onClick={async () => {
                                                     if (window.confirm("⚠️ ADVERTENCIA: ¿Estás seguro de liberar este pedido?\n\nAl hacerlo antes de iniciar el trabajo, se restarán puntos de tu reputación y el trabajo volverá a la lista de disponibles.")) {
                                                         try {
+                                                            setLoadingJobId(job.id);
                                                             await api.put(`/api/bookings/${job.id}/release`, {});
+                                                            toast.success("Pedido liberado.");
                                                         } catch (e) {
                                                             console.error(e);
-                                                            alert("Error al liberar");
+                                                            toast.error("Error al liberar.");
+                                                        } finally {
+                                                            setLoadingJobId(null);
                                                         }
                                                     }
                                                 }}
@@ -694,7 +711,9 @@ const Dashboard = () => {
                                                     </>
                                                 )}
                                                 <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                                                    <button onClick={handleUpdateDetails} style={{ flex: 1, backgroundColor: 'green', color: 'white', border: 'none', padding: '8px', borderRadius: '4px', cursor: 'pointer' }}>Guardar Cambios</button>
+                                                    <button onClick={handleUpdateDetails} disabled={isUpdatingDetails} style={{ flex: 1, backgroundColor: 'green', color: 'white', border: 'none', padding: '8px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        {isUpdatingDetails ? <ClipLoader color="white" size={16} /> : 'Guardar Cambios'}
+                                                    </button>
                                                     <button onClick={() => setEditingJob(null)} style={{ flex: 1, backgroundColor: '#ddd', color: 'black', border: 'none', padding: '8px', borderRadius: '4px', cursor: 'pointer' }}>Cancelar</button>
                                                 </div>
                                             </div>
@@ -748,7 +767,7 @@ const Dashboard = () => {
                                                         disabled={loadingJobId === job.id}
                                                         onClick={() => {
                                                             if ((job.price) <= 0) {
-                                                                alert("⚠️ No puedes finalizar en $0. Por favor cotiza el servicio o cobra visita.");
+                                                                toast.error("⚠️ No puedes finalizar en $0. Cotiza el servicio.");
                                                             } else {
                                                                 handleStatusUpdate(job.id, 'Completed');
                                                             }

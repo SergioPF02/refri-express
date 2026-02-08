@@ -4,6 +4,7 @@ import { User, Briefcase } from 'phosphor-react';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/Button';
 import Input from '../components/Input';
+import { ClipLoader } from 'react-spinners';
 
 
 interface RegisterErrors {
@@ -216,7 +217,13 @@ const Register = () => {
 
                 <div style={{ marginTop: '24px' }}>
                     <Button onClick={handleSubmit} disabled={loading}>
-                        {loading ? 'Registrando...' : `Registrarme como ${role === 'client' ? 'Cliente' : 'Técnico'}`}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                            {loading ? (
+                                <ClipLoader color="white" size={20} />
+                            ) : (
+                                `Registrarme como ${role === 'client' ? 'Cliente' : 'Técnico'}`
+                            )}
+                        </div>
                     </Button>
                 </div>
             </div>

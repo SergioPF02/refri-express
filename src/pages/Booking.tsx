@@ -12,6 +12,8 @@ import MapSelector from '../components/MapSelector';
 import serviceCleaning from '../assets/service-cleaning.png';
 import serviceGas from '../assets/service-gas.png';
 import { api } from '../api/client';
+import { toast } from 'react-hot-toast';
+import { ClipLoader } from 'react-spinners';
 import '../components/Calendar.css';
 
 interface CartItem {
@@ -58,6 +60,7 @@ const Booking = () => {
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [takenSlots, setTakenSlots] = useState<string[]>([]);
     const [monthlyStats, setMonthlyStats] = useState<Record<string, string>>({});
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const variants = {
         enter: (direction: number) => ({
@@ -254,11 +257,15 @@ const Booking = () => {
             };
 
             try {
+                setIsSubmitting(true);
                 await api.post('/api/bookings', bookingData);
+                toast.success('¡Pedido agendado con éxito!');
                 navigate('/success', { state: bookingData });
             } catch (err) {
                 console.error(err);
-                alert('Error al agendar.');
+                toast.error('Error al agendar el servicio. Inténtalo de nuevo.');
+            } finally {
+                setIsSubmitting(false);
             }
 
         }
@@ -729,13 +736,20 @@ const Booking = () => {
                 <Button
                     onClick={handleNext}
                     disabled={
+                        isSubmitting ||
                         (step === 1 && cart.length === 0) ||
                         (step === 2 && (!formData.date || !formData.time)) ||
                         (step === 3 && isRepairIncluded && (!formData.problem_description)) ||
                         (step === 4 && (!formData.address || !formData.addressDetails || !formData.name || !formData.phone || (formData.contact_method === 'Correo Electrónico' && !formData.contact_email)))
                     }
                 >
-                    {step === 4 ? 'Confirmar Pedido' : 'Continuar'}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                        {isSubmitting ? (
+                            <ClipLoader color="white" size={20} />
+                        ) : (
+                            step === 4 ? 'Confirmar Pedido' : 'Continuar'
+                        )}
+                    </div>
                 </Button>
             </div>
         </div >

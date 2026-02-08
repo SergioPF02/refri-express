@@ -6,6 +6,8 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import MapSelector from '../components/MapSelector';
 import { api } from '../api/client';
+import { toast } from 'react-hot-toast';
+import { PulseLoader, ClipLoader } from 'react-spinners';
 
 interface NominatimResult {
     place_id: number;
@@ -39,6 +41,7 @@ const Profile = () => {
     });
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
 
     // Address Autocomplete
     const [suggestions, setSuggestions] = useState<NominatimResult[]>([]);
@@ -106,7 +109,9 @@ const Profile = () => {
     const handleSave = async () => {
         if (!user) return;
         try {
+            setIsSaving(true);
             const data = new FormData();
+            // ... (rest of formData append)
             data.append('name', formData.name);
             data.append('phone', formData.phone);
             data.append('bio', formData.bio);
@@ -128,14 +133,28 @@ const Profile = () => {
             // Update Globally
             updateUser({ ...user, ...updatedUser });
 
-            alert('Perfil actualizado correctamente');
+            toast.success('Perfil actualizado correctamente');
         } catch (err: any) {
             console.error(err);
-            alert('Error al guardar: ' + (err.message || 'Error desconocido'));
+            toast.error('Error al guardar: ' + (err.message || 'Error desconocido'));
+        } finally {
+            setIsSaving(false);
         }
     };
 
-    if (loading) return <div style={{ padding: '24px', textAlign: 'center' }}>Cargando perfil...</div>;
+    if (loading) return (
+        <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '100vh',
+            gap: '20px'
+        }}>
+            <PulseLoader color="var(--color-action-blue)" size={12} />
+            <p>Cargando perfil...</p>
+        </div>
+    );
 
     if (!user) return <div>No user logged in</div>;
 
@@ -307,9 +326,17 @@ const Profile = () => {
                     </div>
 
                     <div style={{ marginTop: '16px' }}>
-                        <Button onClick={handleSave}>
-                            <FloppyDisk size={24} style={{ marginRight: '8px' }} />
-                            Guardar Cambios
+                        <Button onClick={handleSave} disabled={isSaving}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                {isSaving ? (
+                                    <ClipLoader color="white" size={20} />
+                                ) : (
+                                    <>
+                                        <FloppyDisk size={24} />
+                                        Guardar Cambios
+                                    </>
+                                )}
+                            </div>
                         </Button>
                     </div>
 

@@ -9,6 +9,8 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
 import { generateQuotationPDF } from '../utils/pdfGenerator';
 import jsPDF from 'jspdf';
+import { toast } from 'react-hot-toast';
+import { ClipLoader } from 'react-spinners';
 
 interface NominatimResult {
     place_id: number;
@@ -29,6 +31,8 @@ const Quotation = () => {
     const [suggestions, setSuggestions] = useState<NominatimResult[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [customContact, setCustomContact] = useState(''); // Stores phone or email input
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isEmailSending, setIsEmailSending] = useState(false);
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
@@ -59,12 +63,15 @@ const Quotation = () => {
         };
 
         try {
+            setIsSubmitting(true);
             await api.post('/api/bookings', quotationData);
-            alert('Solicitud de cotización enviada. Nos pondremos en contacto contigo pronto.');
+            toast.success('Solicitud de cotización enviada. Nos pondremos en contacto contigo pronto.');
             navigate('/success', { state: quotationData });
         } catch (error) {
             console.error('Error submitting quotation:', error);
-            alert('Hubo un error al enviar la solicitud.');
+            toast.error('Hubo un error al enviar la solicitud.');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -102,6 +109,7 @@ const Quotation = () => {
         }
 
         try {
+            setIsEmailSending(true);
             const doc = handleGeneratePDF();
             const pdfBase64 = doc.output('datauristring').split(',')[1];
 
@@ -111,11 +119,13 @@ const Quotation = () => {
                 customerName: user?.name || 'Cliente'
             });
 
-            alert(`Cotización enviada a ${targetEmail}`);
+            toast.success(`Cotización enviada a ${targetEmail}`);
             navigate('/success', { state: { service: 'Reparación' } });
         } catch (error: any) {
             console.error(error);
-            alert('Error al enviar correo: ' + (error.message || 'Error desconocido'));
+            toast.error('Error al enviar correo: ' + (error.message || 'Error desconocido'));
+        } finally {
+            setIsEmailSending(false);
         }
     };
 
@@ -314,12 +324,14 @@ const Quotation = () => {
                         <Button type="button" onClick={handlePreviewPDF} style={{ backgroundColor: '#FF9800' }}>
                             Vista Previa PDF
                         </Button>
-                        <Button type="button" onClick={handleSendEmail} style={{ backgroundColor: '#2196F3' }}>
-                            Enviar por Correo
+                        <Button type="button" onClick={handleSendEmail} disabled={isEmailSending} style={{ backgroundColor: '#2196F3' }}>
+                            {isEmailSending ? <ClipLoader size={18} color="white" /> : 'Enviar por Correo'}
                         </Button>
                     </div>
                     <div style={{ marginTop: '10px' }}>
-                        <Button type="submit" style={{ width: '100%' }}>Solicitar Visita Técnica</Button>
+                        <Button type="submit" disabled={isSubmitting} style={{ width: '100%' }}>
+                            {isSubmitting ? <ClipLoader size={18} color="white" /> : 'Solicitar Visita Técnica'}
+                        </Button>
                     </div>
                 </form>
             </div >

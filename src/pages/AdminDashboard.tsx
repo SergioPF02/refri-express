@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext';
 // Using only standard icons for safety
 import { Users, Briefcase, ArrowLeft, ShieldCheck, User, Wrench, SignOut, CurrencyDollar } from 'phosphor-react';
 import { api } from '../api/client';
+import { toast } from 'react-hot-toast';
+import { PulseLoader } from 'react-spinners';
 import { User as UserType } from '../types';
 
 interface DashboardStats {
@@ -63,11 +65,11 @@ const AdminDashboard = () => {
         if (!window.confirm(`¿Estás seguro de cambiar el rol a ${newRole}?`)) return;
         try {
             await api.put(`/api/admin/users/${userId}/role`, { role: newRole });
-            alert("Rol actualizado");
+            toast.success("Rol actualizado correctamente");
             fetchUsers();
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            alert("Error al actualizar");
+            toast.error("Error al actualizar: " + (e.message || "Error desconocido"));
         }
     };
 
@@ -112,7 +114,17 @@ const AdminDashboard = () => {
                 </div>
 
                 {loading ? (
-                    <div style={{ textAlign: 'center', marginTop: '50px', color: '#666' }}>Cargando datos...</div>
+                    <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        padding: '100px 0',
+                        gap: '20px'
+                    }}>
+                        <PulseLoader color="#212121" size={12} />
+                        <p style={{ color: '#666' }}>Cargando panel de administración...</p>
+                    </div>
                 ) : (
                     <>
                         {/* Tabs */}

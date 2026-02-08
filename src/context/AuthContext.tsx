@@ -5,6 +5,8 @@ import { User, AuthContextType } from '../types';
 import { Preferences } from '@capacitor/preferences';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
+import { toast } from 'react-hot-toast';
+import { PulseLoader } from 'react-spinners';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -88,17 +90,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         try {
             const data = await api.post('/api/auth/login', userData);
             updateUser(data);
+            toast.success(`Bienvenido, ${data.name}!`);
             return true;
         } catch (err: any) {
             console.error(err);
-            alert(err.message || 'Error connecting to server');
+            toast.error(err.message || 'Error al iniciar sesión');
             return false;
         }
     };
 
     const logout = async () => {
+        const name = user?.name;
         setUser(null);
         await Preferences.remove({ key: 'refri_user' });
+        toast.success(`Sesión cerrada. ¡Hasta luego${name ? ', ' + name : ''}!`);
     };
 
     const updateUser = async (userData: User) => {
@@ -111,6 +116,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const data = await api.post('/api/auth/register', userData);
             // Auto login after register
             updateUser(data);
+            toast.success("¡Cuenta creada con éxito!");
             return true;
         } catch (err: any) {
             console.error(err);
@@ -119,7 +125,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             if (errorMsg.includes("Password")) errorMsg = "La contraseña es muy débil.";
             if (err.status === 404 || err.status === 500) errorMsg = "Error del servidor. Inténtalo más tarde.";
 
-            alert(errorMsg);
+            toast.error(errorMsg);
             return false;
         }
     };
@@ -131,8 +137,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             updateUser, loading
         }}>
             {loading ? (
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: 'white', color: 'black' }}>
-                    <h2>Cargando aplicación...</h2>
+                <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    height: '100vh',
+                    backgroundColor: 'white',
+                    color: 'var(--color-deep-navy)',
+                    gap: '20px'
+                }}>
+                    <PulseLoader color="var(--color-action-blue)" size={15} />
+                    <h2 style={{ fontWeight: '500' }}>Cargando aplicación...</h2>
                 </div>
             ) : (
                 children

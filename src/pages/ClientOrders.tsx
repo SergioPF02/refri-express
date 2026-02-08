@@ -12,6 +12,8 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getSocket } from '../socket';
 import { bookingService } from '../services/bookingService';
+import { toast } from 'react-hot-toast';
+import { ClipLoader, PulseLoader } from 'react-spinners';
 import './ClientOrders.css';
 import { Booking } from '../types';
 
@@ -111,6 +113,7 @@ const ClientOrders = () => {
     const [selectedOrder, setSelectedOrder] = useState<Booking | null>(null);
     const [rating, setRating] = useState(0);
     const [reviewText, setReviewText] = useState('');
+    const [isRating, setIsRating] = useState(false);
 
     useEffect(() => {
         if (!user) return;
@@ -151,15 +154,19 @@ const ClientOrders = () => {
     };
 
     const handleSubmitReview = async () => {
-        if (!selectedOrder || rating === 0) return alert("Por favor selecciona una calificación");
+        if (!selectedOrder || rating === 0) return toast.error("Por favor selecciona una calificación");
 
         try {
+            setIsRating(true);
             const updatedOrder = await bookingService.submitReview(selectedOrder.id, rating, reviewText);
             setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+            toast.success("¡Gracias por tu reseña!");
             setShowReviewModal(false);
         } catch (err) {
             console.error(err);
-            alert("Error enviando reseña");
+            toast.error("Error enviando reseña");
+        } finally {
+            setIsRating(false);
         }
     };
 
@@ -309,7 +316,7 @@ const ClientOrders = () => {
                                                             doc.save(`Recibo_RefriExpress_${order.id}.pdf`);
                                                         } catch (err: any) {
                                                             console.error("PDF Error:", err);
-                                                            alert(`Error al generar PDF: ${err.message}`);
+                                                            toast.error(`Error al generar PDF: ${err.message}`);
                                                         }
                                                     }}
                                                     className="download-pdf-btn"
@@ -399,7 +406,7 @@ const ClientOrders = () => {
                                             </MapContainer>
                                         ) : (
                                             <div className="map-loader">
-                                                <div className="pulse-dot"></div>
+                                                <PulseLoader color="var(--color-action-blue)" size={10} />
                                                 Esperando ubicación del técnico...
                                             </div>
                                         )}
@@ -451,7 +458,9 @@ const ClientOrders = () => {
                         />
 
                         <div className="submit-review-container">
-                            <Button onClick={handleSubmitReview}>Enviar Opinión</Button>
+                            <Button onClick={handleSubmitReview} disabled={isRating}>
+                                {isRating ? <ClipLoader color="white" size={20} /> : 'Enviar Opinión'}
+                            </Button>
                         </div>
                     </div>
                 </div>

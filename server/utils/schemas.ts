@@ -43,3 +43,30 @@ export const submitReviewSchema = Joi.object({
 export const acceptBookingSchema = Joi.object({
     technician_name: Joi.string().required()
 });
+
+export const registerSchema = Joi.object({
+    name: Joi.string().min(2).required(),
+    email: Joi.string().email().required(),
+    password: Joi.string().min(6).required(),
+    role: Joi.string().valid('client', 'technician', 'admin').default('client')
+});
+
+export const loginSchema = Joi.object({
+    email: Joi.string().email().required(),
+    password: Joi.string().required()
+});
+
+export const updateUserProfileSchema = Joi.object({
+    name: Joi.string().min(2).optional(),
+    phone: Joi.string().optional(),
+    address: Joi.string().min(5).optional(),
+    service_type: Joi.string().optional(),
+    bio: Joi.string().optional(),
+    default_lat: Joi.number().optional(),
+    default_lng: Joi.number().optional(),
+    default_address: Joi.string().optional()
+}).unknown(true);
+
+export const updateDeviceTokenSchema = Joi.object({
+    token: Joi.string().required()
+});
