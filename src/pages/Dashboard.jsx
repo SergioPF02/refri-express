@@ -104,6 +104,12 @@ const Dashboard = () => {
     const navigate = useNavigate();
     const { user, logout } = useAuth();
     const [loadingJobId, setLoadingJobId] = useState(null);
+    const [bookings, setBookings] = useState([]);
+    const [editingJob, setEditingJob] = useState(null);
+    const [myLocation, setMyLocation] = useState(null);
+    const [heading, setHeading] = useState(0); // Bearing
+    const [routeSteps, setRouteSteps] = useState([]);
+    const [routePath, setRoutePath] = useState([]);
 
     useEffect(() => {
         // Initial fetch
