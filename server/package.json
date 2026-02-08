@@ -2,11 +2,11 @@
     "name": "refri-express-server",
     "version": "1.0.0",
     "description": "Backend for Refri-Express",
-    "main": "index.js",
+    "main": "index.ts",
     "scripts": {
-        "start": "node migration_add_device_token.js && node index.js",
+        "start": "ts-node index.ts",
         "db:setup": "node init_db.js",
-        "dev": "nodemon index.js"
+        "dev": "nodemon index.ts"
     },
     "dependencies": {
         "bcrypt": "^6.0.0",
@@ -17,6 +17,7 @@
         "firebase-admin": "^13.6.0",
         "googleapis": "^171.2.0",
         "helmet": "^8.1.0",
+        "joi": "^18.0.2",
         "jsonwebtoken": "^9.0.3",
         "multer": "^2.0.2",
         "nodemailer": "^8.0.0",
@@ -26,6 +27,17 @@
         "socket.io": "^4.8.3"
     },
     "devDependencies": {
-        "nodemon": "^3.0.1"
+        "@types/bcrypt": "^6.0.0",
+        "@types/cors": "^2.8.19",
+        "@types/express": "^5.0.6",
+        "@types/jsonwebtoken": "^9.0.10",
+        "@types/multer": "^2.0.0",
+        "@types/node": "^25.2.2",
+        "@types/nodemailer": "^7.0.9",
+        "@types/pdfkit": "^0.17.4",
+        "@types/pg": "^8.16.0",
+        "nodemon": "^3.0.1",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.9.3"
     }
 }
