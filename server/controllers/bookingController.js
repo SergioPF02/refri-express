@@ -195,17 +195,13 @@ exports.updateBookingStatus = async (req, res) => {
             // Non-blocking error
         }
 
-    } catch (notifErr) {
-        console.error("Notification/Email Error:", notifErr);
-        // Non-blocking error
-    }
 
-    io.emit('job_update', booking);
-    res.json(booking);
-} catch (err) {
-    console.error(err.message);
-    res.status(500).json({ error: err.message });
-}
+        io.emit('job_update', booking);
+        res.json(booking);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ error: err.message });
+    }
 };
 
 // Update Booking Details
