@@ -261,9 +261,9 @@ const Booking = () => {
                 await api.post('/api/bookings', bookingData);
                 toast.success('¡Pedido agendado con éxito!');
                 navigate('/success', { state: bookingData });
-            } catch (err) {
+            } catch (err: any) {
                 console.error(err);
-                toast.error('Error al agendar el servicio. Inténtalo de nuevo.');
+                toast.error(err.message || 'Error al agendar el servicio. Inténtalo de nuevo.');
             } finally {
                 setIsSubmitting(false);
             }

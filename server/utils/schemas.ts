@@ -13,7 +13,7 @@ export const createBookingSchema = Joi.object({
     name: Joi.string().min(2).required(),
     phone: Joi.string().min(10).required(),
     description: Joi.string().allow('', null).optional(),
-    contact_method: Joi.string().valid('phone', 'whatsapp', 'email').required(),
+    contact_method: Joi.string().valid('phone', 'whatsapp', 'email', 'WhatsApp', 'Correo Electrónico', 'App').required(),
     quantity: Joi.number().integer().min(1).default(1),
     items: Joi.array().items(Joi.object({
         name: Joi.string().required(),
@@ -48,7 +48,7 @@ export const registerSchema = Joi.object({
     name: Joi.string().min(2).required(),
     email: Joi.string().email().required(),
     password: Joi.string().min(6).required(),
-    role: Joi.string().valid('client', 'technician', 'admin').default('client')
+    role: Joi.string().valid('client', 'worker', 'technician', 'admin').default('client')
 });
 
 export const loginSchema = Joi.object({
