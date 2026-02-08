@@ -156,12 +156,38 @@ exports.updateBookingStatus = async (req, res) => {
 
             // --- JOB COMPLETION EMAIL LOGIC ---
             if (status === 'Finalizado' || status === 'Completed' || status === 'Terminado') {
-                console.log(`Job ${booking.id} completed. Generating receipt...`);
-                // Generate PDF
-                const pdfBuffer = await generateReceiptPDF(booking);
+                console.log(`[DEBUG] Job ${booking.id} completed. Starting receipt generation...`);
 
-                // Send Email
-                await sendCompletionEmail(booking.user_email, pdfBuffer, booking.name, booking.service);
+                // Ensure items is an array (handle if it comes as string from DB)
+                if (typeof booking.items === 'string') {
+                    try {
+                        booking.items = JSON.parse(booking.items);
+                    } catch (e) {
+                        console.error("[DEBUG] Error parsing booking items:", e);
+                        booking.items = [];
+                    }
+                }
+
+                try {
+                    // Generate PDF
+                    console.log("[DEBUG] Generating PDF...");
+                    const pdfBuffer = await generateReceiptPDF(booking);
+                    console.log(`[DEBUG] PDF Generated. Size: ${pdfBuffer.length} bytes`);
+
+                    // Send Email
+                    console.log(`[DEBUG] Sending email to ${booking.user_email}...`);
+                    const emailSent = await sendCompletionEmail(booking.user_email, pdfBuffer, booking.name, booking.service);
+
+                    if (emailSent) {
+                        console.log("[DEBUG] Email sent successfully.");
+                    } else {
+                        console.error("[DEBUG] Email sending returned false.");
+                    }
+                } catch (pdfEmailErr) {
+                    console.error("[DEBUG] Critical error in PDF/Email generation:", pdfEmailErr);
+                }
+            } else {
+                console.log(`[DEBUG] Status update to '${status}' - No email triggering.`);
             }
 
         } catch (notifErr) {
@@ -169,12 +195,17 @@ exports.updateBookingStatus = async (req, res) => {
             // Non-blocking error
         }
 
-        io.emit('job_update', booking);
-        res.json(booking);
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).json({ error: err.message });
+    } catch (notifErr) {
+        console.error("Notification/Email Error:", notifErr);
+        // Non-blocking error
     }
+
+    io.emit('job_update', booking);
+    res.json(booking);
+} catch (err) {
+    console.error(err.message);
+    res.status(500).json({ error: err.message });
+}
 };
 
 // Update Booking Details
