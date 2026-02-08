@@ -2,15 +2,20 @@ const nodemailer = require('nodemailer');
 
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 587,
-    secure: false, // Use STARTTLS
+    port: 465,
+    secure: true, // Use SSL
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
     },
-    connectionTimeout: 10000, // 10 seconds
-    greetingTimeout: 10000,
-    socketTimeout: 10000
+    tls: {
+        // do not fail on invalid certs
+        rejectUnauthorized: false
+    },
+    // Force IPv4 to avoid IPv6 timeouts
+    family: 4,
+    logger: true,
+    debug: true
 });
 
 const sendQuotationEmail = async (to, pdfBuffer, customerName) => {
