@@ -103,13 +103,7 @@ const Dashboard = () => {
     const socket = getSocket();
     const navigate = useNavigate();
     const { user, logout } = useAuth();
-    const [bookings, setBookings] = useState([]);
-    const [editingJob, setEditingJob] = useState(null);
-    const [myLocation, setMyLocation] = useState(null);
-    const [heading, setHeading] = useState(0); // Bearing
-    const [routeSteps, setRouteSteps] = useState([]);
-    const [routePath, setRoutePath] = useState([]);
-
+    const [loadingJobId, setLoadingJobId] = useState(null);
 
     useEffect(() => {
         // Initial fetch
@@ -117,6 +111,36 @@ const Dashboard = () => {
             .then(res => res.json())
             .then(data => setBookings(data))
             .catch(err => console.error(err));
+        // ... (rest of useEffects unchanged)
+
+        const handleStatusUpdate = async (jobId, newStatus) => {
+            if (!user) return;
+            setLoadingJobId(jobId);
+            try {
+                const response = await fetch(`${API_URL}/api/bookings/${jobId}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${user.token}`
+                    },
+                    body: JSON.stringify({ status: newStatus })
+                });
+
+                if (!response.ok) {
+                    const text = await response.text();
+                    alert(`Error actualizando el estado: ${text}`);
+                } else {
+                    if (newStatus === 'Completed') {
+                        alert("✅ Trabajo finalizado correctamente. Se ha enviado el recibo por correo.");
+                    }
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Error de conexión al actualizar estado.");
+            } finally {
+                setLoadingJobId(null);
+            }
+        };
 
         // Request Notification Permissions on Mount
         const requestPermissions = async () => {
@@ -782,6 +806,7 @@ const Dashboard = () => {
                                                 {/* 4. Finish (If In Progress) */}
                                                 {job.status === 'In Progress' && (
                                                     <button
+                                                        disabled={loadingJobId === job.id}
                                                         onClick={() => {
                                                             if (parseInt(job.price) <= 0) {
                                                                 alert("⚠️ No puedes finalizar en $0. Por favor cotiza el servicio o cobra visita.");
@@ -789,9 +814,26 @@ const Dashboard = () => {
                                                                 handleStatusUpdate(job.id, 'Completed');
                                                             }
                                                         }}
-                                                        style={{ padding: '12px', backgroundColor: '#2E7D32', color: 'white', border: 'none', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                                                        style={{
+                                                            padding: '12px',
+                                                            backgroundColor: loadingJobId === job.id ? '#ccc' : '#2E7D32',
+                                                            color: 'white',
+                                                            border: 'none',
+                                                            borderRadius: '8px',
+                                                            display: 'flex',
+                                                            justifyContent: 'center',
+                                                            alignItems: 'center',
+                                                            gap: '8px',
+                                                            cursor: loadingJobId === job.id ? 'not-allowed' : 'pointer'
+                                                        }}
                                                     >
-                                                        <CheckCircle size={20} /> Finalizar Trabajo
+                                                        {loadingJobId === job.id ? (
+                                                            <span>Procesando...</span>
+                                                        ) : (
+                                                            <>
+                                                                <CheckCircle size={20} /> Finalizar Trabajo
+                                                            </>
+                                                        )}
                                                     </button>
                                                 )}
                                             </div>
