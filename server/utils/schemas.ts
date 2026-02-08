@@ -15,6 +15,12 @@ export const createBookingSchema = Joi.object({
     description: Joi.string().allow('', null).optional(),
     contact_method: Joi.string().valid('phone', 'whatsapp', 'email', 'WhatsApp', 'Correo Electrónico', 'App').required(),
     quantity: Joi.number().integer().min(1).default(1),
+    // UI/Helper fields used in frontend
+    addressDetails: Joi.string().allow('', null).optional(),
+    contact_email: Joi.string().email().allow('', null).optional(),
+    problem_description: Joi.string().allow('', null).optional(),
+    manual_tonnage: Joi.number().optional(),
+    formattedAddress: Joi.string().optional(),
     items: Joi.array().items(Joi.object({
         name: Joi.string().required(),
         price: Joi.number().required(),

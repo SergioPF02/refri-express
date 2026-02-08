@@ -8,12 +8,25 @@ import { sendCompletionEmail } from '../utils/email';
 // Create Booking
 export const createBooking = async (req: Request, res: Response) => {
     try {
-        const { user_email, service, tonnage, price, date, time, address, lat, lng, name, phone, description, contact_method, quantity } = req.body;
+        const {
+            user_email, service, tonnage, price, date, time, address, lat, lng, name, phone,
+            description, contact_method, quantity,
+            addressDetails, contact_email, problem_description
+        } = req.body;
 
         const newBooking = await pool.query(
-            `INSERT INTO bookings (user_email, service, tonnage, price, date, time, address, lat, lng, name, phone, description, contact_method, quantity) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
-            [user_email, service, tonnage, price, date, time, address, lat, lng, name, phone, description, contact_method, quantity || 1]
+            `INSERT INTO bookings (
+                user_email, service, tonnage, price, date, time, address, lat, lng, name, phone, 
+                description, contact_method, quantity,
+                address_details, contact_email, problem_description
+            ) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) 
+            RETURNING *`,
+            [
+                user_email, service, tonnage, price, date, time, address, lat, lng, name, phone,
+                description, contact_method, quantity || 1,
+                addressDetails, contact_email, problem_description
+            ]
         );
 
         const io = getIO();
