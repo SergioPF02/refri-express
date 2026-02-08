@@ -297,13 +297,15 @@ const Dashboard = () => {
             });
 
             if (!response.ok) {
-                // Try to parse JSON error, fall back to text, then generic
+                // Read body once as text to avoid "stream already read" error
+                const textBody = await response.text();
                 let errorMessage = "Error desconocido";
                 try {
-                    const data = await response.json();
+                    const data = JSON.parse(textBody);
                     errorMessage = data.error || "Error del servidor";
                 } catch (e) {
-                    errorMessage = await response.text();
+                    // If not JSON, use the raw text (likely an HTML error page or CORS message)
+                    errorMessage = textBody || `Error ${response.status} (Sin cuerpo)`;
                 }
                 alert(`Error al aceptar (Status ${response.status}): ${errorMessage}`);
                 return;
