@@ -4,7 +4,8 @@
     "description": "Backend for Refri-Express",
     "main": "index.ts",
     "scripts": {
-        "start": "ts-node index.ts",
+        "start": "node dist/index.js",
+        "build": "tsc",
         "db:setup": "node init_db.js",
         "dev": "nodemon index.ts"
     },
@@ -24,7 +25,9 @@
         "pdfkit": "^0.17.2",
         "pg": "^8.11.3",
         "resend": "^6.9.1",
-        "socket.io": "^4.8.3"
+        "socket.io": "^4.8.3",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.9.3"
     },
     "devDependencies": {
         "@types/bcrypt": "^6.0.0",
@@ -36,8 +39,6 @@
         "@types/nodemailer": "^7.0.9",
         "@types/pdfkit": "^0.17.4",
         "@types/pg": "^8.16.0",
-        "nodemon": "^3.0.1",
-        "ts-node": "^10.9.2",
-        "typescript": "^5.9.3"
+        "nodemon": "^3.0.1"
     }
 }
