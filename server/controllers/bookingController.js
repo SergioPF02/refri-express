@@ -191,9 +191,11 @@ exports.updateBookingDetails = async (req, res) => {
 
         const isOwner = current.user_email === email;
         const isAdmin = role === 'admin';
-        // Workers shouldn't edit details like price/description, usually. But let's restrict to Admin/Owner for now.
-        if (!isAdmin && !isOwner) {
-            return res.status(403).json({ error: "No autorizado." });
+        const isAssignedWorker = current.technician_id === userId;
+
+        // Allow Admin, Owner, OR Assigned Worker to update details
+        if (!isAdmin && !isOwner && !isAssignedWorker) {
+            return res.status(403).json({ error: "No autorizado. Solo el técnico asignado o admin pueden modificar esto." });
         }
 
         const fields = [];
