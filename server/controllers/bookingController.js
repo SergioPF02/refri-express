@@ -36,7 +36,7 @@ exports.createBooking = async (req, res) => {
         res.json(booking);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send("Server Error");
+        res.status(500).json({ error: err.message });
     }
 };
 
@@ -62,7 +62,7 @@ exports.acceptBooking = async (req, res) => {
         res.json(result.rows[0]);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send("Server Error");
+        res.status(500).json({ error: err.message });
     }
 };
 
@@ -91,7 +91,7 @@ exports.releaseBooking = async (req, res) => {
         res.json(releasedJob);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send("Server Error");
+        res.status(500).json({ error: err.message });
     }
 };
 
@@ -173,7 +173,7 @@ exports.updateBookingStatus = async (req, res) => {
         res.json(booking);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send("Server Error");
+        res.status(500).json({ error: err.message });
     }
 };
 
@@ -226,7 +226,7 @@ exports.updateBookingDetails = async (req, res) => {
 
     } catch (err) {
         console.error(err.message);
-        res.status(500).send("Server Error");
+        res.status(500).json({ error: err.message });
     }
 };
 
@@ -244,7 +244,7 @@ exports.submitReview = async (req, res) => {
         res.json(result.rows[0]);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send("Server Error");
+        res.status(500).json({ error: err.message });
     }
 };
 
@@ -293,7 +293,7 @@ exports.getAvailability = async (req, res) => {
         res.json(Array.from(blockedSlots));
     } catch (err) {
         console.error(err.message);
-        res.status(500).send("Server Error");
+        res.status(500).json({ error: err.message });
     }
 };
 
@@ -335,7 +335,7 @@ exports.getMonthlyStats = async (req, res) => {
         res.json(stats);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send("Server Error");
+        res.status(500).json({ error: err.message });
     }
 };
 
@@ -359,6 +359,6 @@ exports.getBookings = async (req, res) => {
         res.json(allBookings.rows);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send("Server Error");
+        res.status(500).json({ error: err.message });
     }
 };

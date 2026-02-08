@@ -282,6 +282,7 @@ const Dashboard = () => {
 
     const handleAcceptJob = async (jobId) => {
         if (!user) return;
+        console.log("Attempting to accept job", jobId, "at URL:", `${API_URL}/api/bookings/${jobId}/accept`);
         try {
             const response = await fetch(`${API_URL}/api/bookings/${jobId}/accept`, {
                 method: 'PUT',
@@ -290,19 +291,27 @@ const Dashboard = () => {
                     'Authorization': `Bearer ${user.token}`
                 },
                 body: JSON.stringify({
-                    // technician_id is extracted from token on backend now
+                    // technician_name is needed
                     technician_name: user.name
                 })
             });
 
             if (!response.ok) {
-                const data = await response.json();
-                alert(data.error);
+                // Try to parse JSON error, fall back to text, then generic
+                let errorMessage = "Error desconocido";
+                try {
+                    const data = await response.json();
+                    errorMessage = data.error || "Error del servidor";
+                } catch (e) {
+                    errorMessage = await response.text();
+                }
+                alert(`Error al aceptar (Status ${response.status}): ${errorMessage}`);
+                return;
             }
             // UI update handled by socket 'job_taken' event
         } catch (err) {
             console.error(err);
-            alert("Error al aceptar trabajo");
+            alert(`Error de Conexión. intentando conectar a: ${API_URL}\nDetalle: ${err.message}`);
         }
     };
 
