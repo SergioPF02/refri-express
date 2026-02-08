@@ -125,6 +125,7 @@ const ClientOrders = () => {
 
         const fetchOrders = async () => {
             try {
+                console.log("Fetching orders for user...", user.email);
                 const response = await fetch(`${API_URL}/api/bookings`, {
                     headers: {
                         'Authorization': `Bearer ${user.token}`
@@ -132,7 +133,10 @@ const ClientOrders = () => {
                 });
                 if (response.ok) {
                     const data = await response.json();
+                    console.log("Orders received:", data);
                     setOrders(data);
+                } else {
+                    console.error("Error fetching orders:", response.status, await response.text());
                 }
             } catch (error) {
                 console.error("Error fetching orders:", error);

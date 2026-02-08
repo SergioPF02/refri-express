@@ -852,6 +852,38 @@ const Dashboard = () => {
                 )
             }
 
+            {/* Completed Jobs History */}
+            {console.log("Debug History:", {
+                userId: user?.id,
+                bookingsCount: bookings.length,
+                completed: bookings.filter(b => b.status === 'Completed'),
+                myCompleted: bookings.filter(b => b.technician_id == user?.id && b.status === 'Completed')
+            })}
+            {bookings.filter(b => b.technician_id == user?.id && b.status === 'Completed').length > 0 && (
+                <div style={{ marginBottom: '32px' }}>
+                    <h3 style={{ marginBottom: '16px', color: '#4CAF50' }}>Historial de Trabajos Completados</h3>
+                    {bookings.filter(b => b.technician_id == user?.id && b.status === 'Completed').map(job => (
+                        <div key={job.id} className="glass-card" style={{ padding: '16px', marginBottom: '16px', borderLeft: '4px solid #4CAF50', opacity: 0.8 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <h4 style={{ margin: 0 }}>{job.service} - {job.tonnage} Ton</h4>
+                                <span style={{
+                                    backgroundColor: '#E8F5E9',
+                                    color: '#2E7D32',
+                                    padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold'
+                                }}>
+                                    Finalizado
+                                </span>
+                            </div>
+                            <div style={{ margin: '8px 0', fontSize: '0.9rem', color: '#555' }}>
+                                <p style={{ margin: '4px 0' }}>{job.address}</p>
+                                <p style={{ margin: '4px 0' }}>Fecha: {new Date(job.date).toLocaleDateString()}</p>
+                                <p style={{ margin: '4px 0', fontWeight: 'bold' }}>Total: ${job.price}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
             <h3 style={{ marginBottom: '16px' }}>Ofertas Disponibles en Tiempo Real</h3>
 
             {

@@ -345,6 +345,8 @@ exports.getMonthlyStats = async (req, res) => {
 exports.getBookings = async (req, res) => {
     try {
         const { role, email } = req.user;
+        console.log(`[DEBUG] getBookings for user: ${email} role: ${role}`);
+
         let query = "SELECT * FROM bookings";
         let params = [];
 
@@ -357,7 +359,11 @@ exports.getBookings = async (req, res) => {
             params.push(email);
         }
 
+        console.log(`[DEBUG] Executing Query: ${query} with params: ${JSON.stringify(params)}`);
+
         const allBookings = await pool.query(query, params);
+        console.log(`[DEBUG] Found ${allBookings.rows.length} bookings.`);
+
         res.json(allBookings.rows);
     } catch (err) {
         console.error(err.message);
